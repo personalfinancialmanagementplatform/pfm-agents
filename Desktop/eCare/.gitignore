@@ -1,0 +1,64 @@
+# See https://help.github.com/articles/ignoring-files/ for more about ignoring files.
+
+### macOS ###
+.DS_Store
+.AppleDouble
+.LSOverride
+Icon
+._*
+.DocumentRevisions-V100
+.fseventsd
+.Spotlight-V100
+.TemporaryItems
+.Trashes
+.VolumeIcon.icns
+.com.apple.timemachine.donotpresent
+.AppleDB
+.AppleDesktop
+Network Trash Folder
+Temporary Items
+.apdisk
+*.icloud
+
+### Node / npm / yarn ###
+node_modules/
+.pnp
+.pnp.*
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/versions
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+.pnpm-debug.log*
+
+### Next.js ###
+.next/
+.out/
+.build/
+.vercel
+
+### TypeScript ###
+*.tsbuildinfo
+next-env.d.ts
+
+### Env Files ###
+.env*
+.env*.local
+
+### Testing ###
+/coverage
+
+### Misc ###
+*.pem
+*.sublime*
+**/*.backup.*
+**/*.back.*
+psd
+thumb
+sketch
+logs
+
