@@ -38,8 +38,8 @@ export const getPatientData = async (req: NextApiRequest, res: NextApiResponse) 
     try {
       // 查詢病患資料
       const [patients] = await connection.execute<PatientRow[]>(
-        `SELECT * FROM patients 
-         WHERE id = ? AND userId = ?`,
+        `SELECT * FROM patient 
+         WHERE patientId = ? AND userId = ?`,
         [Number(patientId), Number(userId)]
       );
       

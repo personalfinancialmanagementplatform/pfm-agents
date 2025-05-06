@@ -38,7 +38,7 @@ export const updatePatient = async (req: NextApiRequest, res: NextApiResponse) =
       info
     } = req.body;
     
-    // 檢查必要欄位 - 只檢查 patientId 和 userId
+    // 檢查必要欄位 - 只檢查 patientId 和 userId 
     if (!patientId || !userId) {
       return res.status(400).json({ success: false, message: '缺少必要欄位' });
     }
@@ -48,7 +48,7 @@ export const updatePatient = async (req: NextApiRequest, res: NextApiResponse) =
     try {
       // 先取得目前病患資料
       const [patients] = await connection.execute<PatientRow[]>(
-        'SELECT * FROM patients WHERE id = ?',
+        'SELECT * FROM patient WHERE patientId = ?',
         [Number(patientId)]
       );
       
@@ -60,31 +60,30 @@ export const updatePatient = async (req: NextApiRequest, res: NextApiResponse) =
       
       // 更新病患資料，若沒有提供則使用原有的值
       const [result] = await connection.execute<ResultSetHeader>(
-        `UPDATE patients SET
-          userId = ?,
-          name = ?,
-          age = ?,
-          gender = ?,
-          addr = ?,
-          emerName = ?,
-          emerPhone = ?,
-          info = ?,
-          lastUpd = ?,
-          lastUpdId = ?
-        WHERE id = ?`,
-        [
-          Number(userId),
-          name || currentPatient.name,
-          age ? parseInt(age) : currentPatient.age,
-          gender || currentPatient.gender,
-          addr || currentPatient.addr,
-          emerName || currentPatient.emerName,
-          emerPhone || currentPatient.emerPhone,
-          info !== undefined ? info : currentPatient.info,
-          new Date().toISOString(),
-          Number(userId),
-          Number(patientId)
-        ]
+        `UPDATE patient SET
+           userId = ?,
+           name = ?,
+           age = ?,
+           gender = ?,
+           addr = ?,
+           emerName = ?,
+           emerPhone = ?,
+           info = ?,
+           lastUpd = NOW(),
+           lastUpdId = ?
+           WHERE patientId = ?`,
+         [
+         Number(userId),
+         name || currentPatient.name,
+         age ? parseInt(age) : currentPatient.age,
+         gender || currentPatient.gender,
+         addr || currentPatient.addr,
+         emerName || currentPatient.emerName,
+         emerPhone || currentPatient.emerPhone,
+         info !== undefined ? info : currentPatient.info,
+         Number(userId),
+         Number(patientId)
+         ]
       );
       
       // Check if update was successful
@@ -95,7 +94,7 @@ export const updatePatient = async (req: NextApiRequest, res: NextApiResponse) =
       // Fetch the updated patient data
       const [updatedPatients] = await connection.execute<PatientRow[]>(
         `SELECT 
-          id,
+          patientId,
           userId,
           name,
           age,
@@ -108,8 +107,8 @@ export const updatePatient = async (req: NextApiRequest, res: NextApiResponse) =
           info,
           lastUpd,
           lastUpdId
-        FROM patients 
-        WHERE id = ?`,
+        FROM patient
+        WHERE patientId = ?`,
         [Number(patientId)]
       );
       

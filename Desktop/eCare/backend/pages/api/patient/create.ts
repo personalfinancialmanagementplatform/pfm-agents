@@ -6,14 +6,6 @@ import { NextApiRequest, NextApiResponse} from 'next';
 import PatientData from 'mysql2'; //..?
 import mysqlConnectionPool from '../../../src/lib/mysql';
 
-// Create a connection pool
-//const pool = mysql.createPool({
- // host: 'localhost', // Replace with database host
-  //user: 'root',      // Replace with database user
-//   password: 'password', // Replace with database password
-//   database: 'health_db', // Replace with database name
-//});
-
 // Type for the patient data
 type PatientData = {
   userId: number;
@@ -23,48 +15,56 @@ type PatientData = {
   addr: string;
   idNum: string;
   nhCardNum: string;
-  emerName?: string;
-  emerPhone?: string;
-  info?: string;
+  emerName: string;
+  emerPhone: string;
+  info: string;
+  lastUpd: string;
+  lastUpdId: number;
+  isArchived: boolean;
+
 };
 
 // The function to create a patient in the database
 async function createPatient(patientData: PatientData): Promise<number> {
-
-
-  // Check if patient with this ID number already exists
-  const [existingPatients] = await mysqlConnectionPool.execute(
-    'SELECT id FROM patients WHERE id_num = ?',
-    [patientData.idNum]
-  );
   
-  if (Array.isArray(existingPatients) && existingPatients.length > 0) {
-    throw new Error('Patient with this ID number already exists');
+    // Check if patient with this ID number already exists
+    const [existingPatients] = await mysqlConnectionPool.execute(
+      'SELECT idNum FROM patient WHERE idNum = ?',
+      [patientData.idNum]
+    );
+    
+    if (Array.isArray(existingPatients) && existingPatients.length > 0) {
+      throw new Error('Patient with this ID number already exists');
+    }
+  
+    // Insert the patient into the database
+    const [result] = await mysqlConnectionPool.execute(
+      `INSERT INTO patient (
+        patientId, userId, name, age, gender, addr, idNum, nhCardNum, 
+        emerName, emerPhone, info, lastUpd, lastUpdId, isArchived
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW(), ?, ?)`,
+      [
+        null, // patientId will be auto-incremented
+        patientData.userId,
+        patientData.name,
+        patientData.age,
+        patientData.gender,
+        patientData.addr,
+        patientData.idNum,
+        patientData.nhCardNum,
+        patientData.emerName || null,
+        patientData.emerPhone || null,
+        patientData.info || null,
+        patientData.userId || null, // lastUpdId
+        false  // Using 0 or false for isArchived
+      ]
+    );
+
+    // Return the ID of the newly created patient
+    return (result as any).insertId;
   }
 
-  // Insert the patient into the database
-  const [result] = await mysqlConnectionPool.execute(
-    `INSERT INTO patients (
-      userId, name, age, gender, addr, idNum, nhCardNum, 
-      emerName, emerPhone, info, created_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NOW())`,
-    [
-      patientData.userId,
-      patientData.name,
-      patientData.age,
-      patientData.gender,
-      patientData.addr,
-      patientData.idNum,
-      patientData.nhCardNum,
-      patientData.emerName || null,
-      patientData.emerPhone || null,
-      patientData.info || null
-    ]
-  );
-
-  // Return the ID of the newly created patient
-  return (result as any).insertId;
-}
+  
 
 // Main API handler
 export default async function POST(req: NextApiRequest, res: NextApiResponse) {
@@ -72,7 +72,7 @@ export default async function POST(req: NextApiRequest, res: NextApiResponse) {
       // Parse the request body
    
       const {
-        userId,
+       
         name,
         age,
         gender,
@@ -82,11 +82,14 @@ export default async function POST(req: NextApiRequest, res: NextApiResponse) {
         emerName,
         emerPhone,
         info,
+        lastUpd, 
+        lastUpdId, 
+        isArchived,
       } = req.body;
 
 
     // Validate required fields
-    if (!userId || !name || !age || !gender || !addr || !idNum || !nhCardNum) {
+    if (!name || !age || !gender || !addr || !idNum || !nhCardNum) {
         return res.status(400).json(
             {
               success: false,
@@ -97,18 +100,23 @@ export default async function POST(req: NextApiRequest, res: NextApiResponse) {
         }
 
     // Call the controller function
-    const patientId = await createPatient({
-      userId: Number(userId),
-      name,
-      age: Number(age),
-      gender,
-      addr,
-      idNum,
-      nhCardNum,
-      emerName,
-      emerPhone,
-      info
-    });
+  const patientId = await createPatient({
+   
+    userId: Number(req.body.userId), // Assuming userId is passed in the request body
+    name,
+    age: Number(age),
+    gender,
+    addr,
+    idNum,
+    nhCardNum,
+    emerName,
+    emerPhone,
+    info,
+    lastUpd, 
+    lastUpdId, 
+    isArchived,
+    
+  });
 
     return res.status(201).json(
         {

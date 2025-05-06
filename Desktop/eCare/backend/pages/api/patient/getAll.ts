@@ -38,7 +38,7 @@ export const getAllPatients = async (req: NextApiRequest, res: NextApiResponse) 
     try {
       // 查詢病患資料
       const [patients] = await connection.execute<PatientRow[]>(
-        'SELECT * FROM patients WHERE userId = ? ORDER BY lastUpd DESC',
+        'SELECT * FROM patient WHERE userId = ? ORDER BY lastUpd DESC',
         [Number(userId)]
       );
       
