@@ -9,3 +9,4 @@ venv/
 logs/
 *.log
 .pytest_cache/
+models/
