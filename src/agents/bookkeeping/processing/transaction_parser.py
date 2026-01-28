@@ -39,7 +39,7 @@ class ParsedTransaction:
 AMOUNT_PATTERNS = [
     r'(\d+(?:,\d{3})*(?:\.\d+)?)\s*(?:元|塊|$)',
     r'(?:NT\$?|＄)\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
-    r'(?:花了|付了|買了|繳了|吃了|用了|刷了)\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
+    r'(?:花了|付了|買了|繳了|吃了|用了|刷了|喝了)\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
     r'共\s*(\d+(?:,\d{3})*(?:\.\d+)?)',
 ]
 
@@ -47,7 +47,8 @@ AMOUNT_PATTERNS = [
 INCOME_KEYWORDS = [
     "薪水", "薪資", "工資", "入帳", "收入", "獎金", "紅包",
     "退款", "回饋", "利息", "股利", "分紅", "稿費", "接案",
-    "兼職", "打工", "報酬", "進帳", "領到", "拿到"
+    "兼職", "打工", "報酬", "進帳", "領到", "拿到", "拿到", 
+    "家教", "投資收益", "賣出", "出售", "賣掉", "賣了",
 ]
 
 # 時間關鍵字
@@ -81,9 +82,8 @@ PARSE_PROMPT = """你是一個記帳助手，專門解析用戶的記帳輸入�
 class TransactionParserAgent(BaseAgent):
     """
     交易解析 Agent
-    
     將自然語言記帳輸入解析為結構化交易資料。
-    使用混合策略：規則優先，複雜情況用 LLM。
+    規則優先，複雜情況在調用 LLM。
     """
     
     def __init__(self):
@@ -122,7 +122,7 @@ class TransactionParserAgent(BaseAgent):
         # 規則解析信心度不夠，使用 LLM
         llm_result = await self._llm_parse(text)
         
-        # 如果 LLM 也失敗，返回規則結果（如果有的話）
+        # 如果 LLM 也失敗，返回規則結果
         if llm_result.get("amount", 0) == 0 and result:
             return Artifact(
                 type="parsed_transaction",
@@ -136,12 +136,10 @@ class TransactionParserAgent(BaseAgent):
             metadata={"method": "llm"},
         )
     
-    # ========================================================================
+
     # 規則解析
-    # ========================================================================
-    
     def _rule_based_parse(self, text: str) -> Optional[ParsedTransaction]:
-        """規則解析"""
+  
         # 提取金額
         amount = self._extract_amount(text)
         if amount is None:
@@ -210,7 +208,7 @@ class TransactionParserAgent(BaseAgent):
                 return keyword
         
         # 餐點時間
-        meals = ["早餐", "午餐", "晚餐", "宵夜", "下午茶"]
+        meals = ["早餐", "午餐", "晚餐", "宵夜", "下午茶", "早午餐","點心"]
         for meal in meals:
             if meal in text:
                 return meal
@@ -225,6 +223,11 @@ class TransactionParserAgent(BaseAgent):
             "全聯", "家樂福", "好市多", "IKEA", "鼎泰豐", "王品",
             "摩斯漢堡", "漢堡王", "必勝客", "達美樂", "路易莎",
             "cama", "85度C", "50嵐", "清心", "迷客夏", "可不可",
+            "Uber", "Uber Eats", "Foodpanda", "台灣大哥大", 
+            "遠傳電信", "中華電信", "台灣之星", "LINE Pay", "街口支付", "Apple Store",
+            "Google Play", "蝦皮", "露天拍賣", "Yahoo奇摩拍賣", "PChome"
+            ,"momo","博客來","誠品書店","金石堂","燦坤","光南","大潤發","愛買","家樂福"
+            
         ]
         
         for merchant in merchants:
@@ -243,7 +246,7 @@ class TransactionParserAgent(BaseAgent):
         # 移除金額
         desc = re.sub(r'\d+(?:,\d{3})*(?:\.\d+)?\s*(?:元|塊)?', '', text)
         # 移除常見詞
-        desc = re.sub(r'(花了|付了|買了|繳了|今天|昨天|剛剛|在)', '', desc)
+        desc = re.sub(r'(花了|付了|買了|繳了|喝了|今天|昨天|剛剛|在)', '', desc)
         desc = desc.strip()
         
         if not desc and merchant:
