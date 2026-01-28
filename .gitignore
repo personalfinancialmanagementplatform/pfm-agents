@@ -10,3 +10,4 @@ logs/
 *.log
 .pytest_cache/
 models/
+models/
