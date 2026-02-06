@@ -1,12 +1,9 @@
 """
-Bookkeeping Domain Agents
-記帳領域 Agent 模組
+Bookkeeping Domain - LangGraph 版本
+記帳領域 Node 模組
 """
-
-from .coordinator import BookkeepingCoordinator
-from .processing.transaction_parser import TransactionParserAgent
+from .processing.transaction_parser import transaction_parser_node
 
 __all__ = [
-    "BookkeepingCoordinator",
-    "TransactionParserAgent",
+    "transaction_parser_node",
 ]
