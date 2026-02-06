@@ -69,7 +69,29 @@ PostgreSQL：結構固定、需要 JOIN、需要交易一致性
 MongoDB：結構彈性、寫入頻繁、不需 JOIN
   → 對話狀態、日誌、事件、新聞、行為分析
 ```
+### Redis（快取與即時數據）
 
+即時快取，提升回應速度。
+
+| 功能 | Key 格式 | 過期時間 |
+|------|----------|----------|
+| 使用者 Session | `session:{user_id}` | 30 分鐘 |
+| 預算快取 | `budget:{user_id}` | 1 小時 |
+| 分類快取 | `categories:all` | 24 小時 |
+| Rate Limiting | `rate:{user_id}` | 1 分鐘 |
+| 當日消費總額 | `daily_total:{user_id}:{date}` | 2 小時 |
+
+### 資料庫分工原則
+```
+PostgreSQL：結構固定、需要 JOIN、需要交易一致性
+  → 使用者、交易、預算、目標
+
+MongoDB：結構彈性、寫入頻繁、不需 JOIN
+  → 對話狀態、日誌、事件、新聞、行為分析
+
+Redis：高速讀寫、短期暫存、即時數據
+  → Session、快取、限流、當日統計
+```
 ## 🤖 Agent 架構
 
 | Domain | 主要功能 |
@@ -181,4 +203,4 @@ mcp_tools:
 - **Agent Protocol**: Google A2A
 - **Tool Protocol**: Anthropic MCP
 - **Backend**: FastAPI
-- **Database**: PostgreSQL + MongoDB
+- **Database**: PostgreSQL + MongoDB + Redis
