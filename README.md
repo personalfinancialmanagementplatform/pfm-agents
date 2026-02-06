@@ -3,7 +3,6 @@
 基於 **TAIDE 模型** + **A2A Protocol** + **MCP** 的個人財務管理多代理人系統。
 
 ## 🚀 快速開始
-
 ```bash
 # 建立虛擬環境
 python -m venv venv
@@ -20,7 +19,6 @@ uvicorn src.api.main:app --reload --port 8000
 ```
 
 ## 📁 專案結構
-
 ```
 pfm-agents/
 ├── config/          # 設定檔
@@ -28,11 +26,48 @@ pfm-agents/
 ├── docs/            # 文件
 ├── src/             # 原始碼
 │   ├── agents/      # 各領域 Agent
+│   ├── database/    # 資料庫模組（PostgreSQL + MongoDB）
 │   ├── mcp/         # MCP 工具
 │   ├── protocols/   # A2A 協議
 │   ├── models/      # TAIDE 模型
 │   └── api/         # FastAPI
 └── tests/           # 測試
+```
+
+## 💾 資料庫架構
+
+### PostgreSQL（結構化數據）
+
+儲存核心業務資料，使用純 SQL + psycopg2 操作。
+
+| 資料表 | 用途 |
+|--------|------|
+| users | 使用者資料（LINE ID、姓名、生日、性別） |
+| categories | 消費分類（17 個預設分類含子分類） |
+| transactions | 交易記錄（收入/支出） |
+| budgets | 預算管理 |
+| financial_goals | 財務目標追蹤 |
+
+### MongoDB（彈性數據）
+
+儲存非結構化 / 半結構化資料。
+
+| Collection | 用途 |
+|------------|------|
+| conversation_states | Agent 對話狀態 |
+| llm_logs | LLM 解析日誌（輸入/輸出/延遲） |
+| events | 事件總線（Agent 間通訊記錄） |
+| financial_news | 財經新聞 |
+| user_behaviors | 使用者行為記錄 |
+| goal_strategies | AI 目標策略建議 |
+
+### 資料庫分工原則
+```
+PostgreSQL：結構固定、需要 JOIN、需要交易一致性
+  → 使用者、交易、預算、目標
+
+MongoDB：結構彈性、寫入頻繁、不需 JOIN
+  → 對話狀態、日誌、事件、新聞、行為分析
 ```
 
 ## 🤖 Agent 架構
@@ -51,7 +86,6 @@ pfm-agents/
 ## 📒 記帳 Domain 架構
 
 ### 整體流程
-
 ```
 輸入: 用戶原始輸入 + 上下文
         ⬇️
@@ -67,7 +101,6 @@ record    query       analyze
 ```
 
 ### 處理流程
-
 ```
 用戶輸入 → Intent Recognizer（判斷意圖）→ Coordinator 分派任務
 │
@@ -123,7 +156,7 @@ record    query       analyze
 | Agent | 職責 | 模型 |
 |-------|------|------|
 | Anomaly Detector | 異常消費偵測（單筆異常/頻率異常/重複交易） | Rule（統計） |
-| Budget Monitor | 有關預算的花費，導向至預算設定、追蹤、提醒（50%/80%/100%） | Rule + TAIDE |
+| Budget Monitor | 預算設定、追蹤、提醒（50%/80%/100%） | Rule + TAIDE |
 
 #### 📋 Output Layer
 
@@ -133,7 +166,6 @@ record    query       analyze
 | Report Formatter | 格式化輸出（JSON/Markdown/圖表數據） | Template |
 
 ### MCP Tools
-
 ```yaml
 mcp_tools:
   - database_query    # 查詢交易紀錄
@@ -149,3 +181,4 @@ mcp_tools:
 - **Agent Protocol**: Google A2A
 - **Tool Protocol**: Anthropic MCP
 - **Backend**: FastAPI
+- **Database**: PostgreSQL + MongoDB
