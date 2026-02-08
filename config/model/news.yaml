@@ -1,0 +1,173 @@
+# ==============================================
+# News Agent 業務設定（來源 / 推播 / 排序 / 去重 / QA 檢索）
+# 注意：LLM 的 prompt 與推論參數請放 taide.yaml 的 task_configs
+# ==============================================
+
+meta:
+  timezone: "Asia/Taipei"
+  language: "zh-TW"
+
+# ----------------------------------------------
+# 新聞來源設定（MCP 工具會用到）
+# - 建議你先用 RSS 做 MVP；之後再接 News API
+# - enabled=false 的先保留，避免未來改 config 又要動 code
+# ----------------------------------------------
+sources:
+  rss:
+    enabled: true
+    # 來源清單：name 用於顯示與紀錄，weight 用於排序可信度/優先度
+    feeds:
+      - name: "Google News - Taiwan Business"
+        url: "https://news.google.com/rss?hl=zh-TW&gl=TW&ceid=TW:zh-Hant"
+        weight: 1.0
+        language: "zh-TW"
+
+      # 你也可以再加其他 RSS
+      # - name: "Tech RSS"
+      #   url: "https://example.com/rss"
+      #   weight: 0.9
+      #   language: "zh-TW"
+
+  news_api:
+    enabled: false
+    provider: "newsapi"  # e.g. newsapi | gnews | custom
+    api_key_env: "NEWS_API_KEY"
+    # 預設查詢參數（依你選的 provider 調整）
+    default_params:
+      country: "tw"
+      language: "zh"
+      page_size: 50
+
+  # 文章正文抓取（有些 RSS 只有摘要，做摘要/QA 可能需要內文）
+  article_fetch:
+    enabled: true
+    # 最簡 MVP：只抓 RSS description/content；之後可改成 readability/boilerpy 等
+    mode: "rss_first"   # rss_first | fetch_url
+    timeout_sec: 10
+
+# ----------------------------------------------
+# 推播策略：每日推送 + 手動刷新
+# 你要的「每日主動」通常是 scheduler 觸發；
+# 「刷新」是 API 觸發同一條 graph，但要遵守 cooldown + 去重
+# ----------------------------------------------
+push:
+  enabled: true
+
+  daily:
+    enabled: true
+    # 每天幾點推播（台北時間）
+    time: "09:00"      # HH:MM
+    # 若你要工作日才推，可用 weekdays_only
+    weekdays_only: false
+
+  refresh:
+    enabled: true
+    # 防止使用者狂刷打爆來源
+    cooldown_sec: 300  # 5 分鐘
+    # refresh 時，每次最多補幾則「新且未推送」的新聞
+    limit: 10
+
+  # 去重規則：推送/刷新都要用
+  dedup:
+    # 去重窗口：避免今天重推、或短期重推
+    window_hours: 24
+    # 去重 key：建議用 url hash；如果來源沒有 url 就用 title+published_at hash
+    key_strategy: "url_hash"  # url_hash | title_time_hash
+    # 標題相似度去重（可選，避免同新聞不同來源重複推）
+    enable_fuzzy_title_dedup: true
+    fuzzy_title_threshold: 0.92
+
+# ----------------------------------------------
+# 推播內容分兩類：熱門 / 個人化
+# 個人化先做簡化：用 user preferences 的 keywords/topics 命中加權
+# ----------------------------------------------
+channels:
+  hot:
+    enabled: true
+    limit: 5
+    # 熱門排序權重
+    weights:
+      recency: 0.50          # 越新越前面
+      source_weight: 0.25    # 來源權重（sources.rss.feeds[].weight）
+      multi_source_boost: 0.25  # 同題多來源加分（你若做得到）
+
+    # 熱門時間窗：只看最近 N 小時新聞（避免推太舊）
+    lookback_hours: 24
+
+  personalized:
+    enabled: true
+    limit: 5
+    # 個人化加權：先簡單用命中分數
+    weights:
+      keyword_hit: 0.60
+      topic_hit: 0.25
+      recency: 0.15
+
+    lookback_hours: 72
+
+# ----------------------------------------------
+# QA（金融/科技知識問答）檢索策略
+# - 這裡只放「要查哪些資料、查多寬」
+# - 回答的語氣/格式（prompt）請放 taide.yaml task_configs
+# ----------------------------------------------
+qa:
+  enabled: true
+
+  retrieval:
+    # 預設查詢窗口
+    lookback_days:
+      market_reasoning: 3      # 盤勢原因類：近 3 天
+      industry_updates: 30     # 產業近況類：近 30 天
+      term_explain: 3650       # 名詞解釋：可很久（其實走 glossary 更好）
+
+    # 每次檢索最多拿幾篇作為 evidence（越多越慢）
+    max_articles:
+      market_reasoning: 12
+      industry_updates: 20
+      term_explain: 5
+
+    # 若沒查到足夠文章怎麼辦
+    fallback:
+      allow_general_explanation: true   # 允許用一般性解釋補足，但要明說沒有即時依據
+      min_evidence_articles: 2
+
+  answer_style:
+    # 風險控管：避免變投資建議
+    avoid_investment_advice: true
+    # 要求回答裡使用保守措辭
+    hedging_language: true
+    # 回答結構建議（供 summary node 用）
+    preferred_sections:
+      - "重點摘要"
+      - "可能原因/影響路徑"
+      - "支持依據（新聞/事件）"
+      - "不確定因素"
+      - "你可以追問什麼"
+
+# ----------------------------------------------
+# 使用者偏好（個人化 MVP）
+# 你可以存在 DB；這裡只提供預設值與允許範圍
+# ----------------------------------------------
+  preferences:
+    defaults:
+      keywords:
+        - "ETF"
+        - "台股ETF"
+        - "0050"
+        - "0056"
+        - "00878"
+        - "00919"
+        - "00891"
+        - "高股息"
+        - "市值型"
+        - "配息"
+        - "除息"
+        - "元大"
+        - "國泰"
+        - "群益"
+        - "復華"
+
+  limits:
+    max_topics: 20
+    max_keywords: 30
+    max_keyword_length: 30
