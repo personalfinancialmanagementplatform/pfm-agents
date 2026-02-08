@@ -5,7 +5,7 @@ from typing import Optional
 from fastapi import APIRouter
 from pydantic import BaseModel
 
-from ...agents.bookkeeping import BookkeepingCoordinator
+from ...agents.bookkeeping.coordinator import BookkeepingCoordinator
 from ...agents.base import Task
 
 router = APIRouter()
