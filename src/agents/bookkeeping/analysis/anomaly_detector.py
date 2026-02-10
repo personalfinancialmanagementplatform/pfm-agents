@@ -1,151 +1,181 @@
 """
-Anomaly Detector Node - LangGraph 版本（LLM + 統計混合）
-先用 DB 查歷史數據計算統計值，再用 LLM 綜合判斷是否異常
+Anomaly Detector Node - LangGraph 版本（LLM + 統計規則混合）
+1. 統計規則：查歷史數據算平均和標準差（目前用 Mock）
+2. LLM 判斷：把統計結果 + 交易資訊丟給 TAIDE 綜合判斷
 """
 import json
 import logging
-from datetime import date, timedelta
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
-from ....agents.base import BookkeepingState
 from ....models import get_taide_model
-from ....database.connection import execute_query
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Mock 歷史數據（之後替換成 DB 查詢）
+# ============================================================================
+
+MOCK_HISTORY = {
+    "午餐": {"avg": 120, "std": 40, "max": 250, "count": 30},
+    "晚餐": {"avg": 200, "std": 60, "max": 450, "count": 25},
+    "早餐": {"avg": 65, "std": 20, "max": 120, "count": 20},
+    "飲料": {"avg": 55, "std": 15, "max": 100, "count": 40},
+    "交通": {"avg": 80, "std": 30, "max": 200, "count": 15},
+    "購物": {"avg": 500, "std": 300, "max": 2000, "count": 10},
+    "娛樂": {"avg": 350, "std": 150, "max": 800, "count": 8},
+    "醫療": {"avg": 300, "std": 200, "max": 1000, "count": 5},
+    "其他支出": {"avg": 200, "std": 150, "max": 800, "count": 20},
+}
+
+
+def get_category_stats(category_name: str) -> Optional[Dict]:
+    """
+    取得該分類的歷史統計資料
+    TODO: 之後改成從 PostgreSQL 查詢
+    """
+    # 嘗試精確匹配
+    if category_name in MOCK_HISTORY:
+        return MOCK_HISTORY[category_name]
+
+    # 嘗試模糊匹配
+    for key, stats in MOCK_HISTORY.items():
+        if key in category_name or category_name in key:
+            return stats
+
+    # 沒有歷史資料，回傳 None
+    return None
+
+
+# ============================================================================
+# 統計規則判斷
+# ============================================================================
+
+def stat_check(amount: float, stats: Dict) -> Dict:
+    """
+    用統計規則初步判斷是否異常
+    - 超過 平均 + 2倍標準差 → 可能異常
+    - 超過歷史最大值 → 高度異常
+    """
+    avg = stats["avg"]
+    std = stats["std"]
+    historical_max = stats["max"]
+
+    threshold_2std = avg + 2 * std
+    threshold_3std = avg + 3 * std
+
+    if amount > historical_max:
+        return {
+            "stat_flag": "high",
+            "reason": f"超過歷史最高 ${historical_max}",
+            "avg": avg,
+            "std": std,
+            "deviation": round((amount - avg) / std, 1) if std > 0 else 0,
+        }
+    elif amount > threshold_3std:
+        return {
+            "stat_flag": "high",
+            "reason": f"超過平均值 3 倍標準差（平均 ${avg}）",
+            "avg": avg,
+            "std": std,
+            "deviation": round((amount - avg) / std, 1),
+        }
+    elif amount > threshold_2std:
+        return {
+            "stat_flag": "medium",
+            "reason": f"超過平均值 2 倍標準差（平均 ${avg}）",
+            "avg": avg,
+            "std": std,
+            "deviation": round((amount - avg) / std, 1),
+        }
+    else:
+        return {
+            "stat_flag": "normal",
+            "reason": "在正常範圍內",
+            "avg": avg,
+            "std": std,
+            "deviation": round((amount - avg) / std, 1) if std > 0 else 0,
+        }
 
 
 # ============================================================================
 # LLM Prompt
 # ============================================================================
 
-ANOMALY_PROMPT = """你是一個財務異常偵測助手，負責判斷一筆新交易是否異常。
+ANOMALY_PROMPT = """你是一個專業的財務異常偵測助手。根據以下交易資訊和歷史統計數據，判斷這筆交易是否異常。
 
-用戶的歷史消費統計：
-- 該分類過去平均單筆金額：{avg_amount} 元
-- 該分類過去最高單筆金額：{max_amount} 元
-- 該分類本月已消費總額：{month_total} 元
-- 該分類本月已消費筆數：{month_count} 筆
-- 過去30天同分類消費筆數：{recent_count} 筆
-
-這筆新交易：
-- 金額：{amount} 元
-- 分類：{category_name}
+交易資訊：
 - 描述：{description}
+- 金額：${amount}
+- 分類：{category}
 - 商家：{merchant}
 
-請判斷這筆交易是否異常，以 JSON 格式回答，只回覆 JSON：
+歷史統計（同分類）：
+- 平均消費：${avg}
+- 標準差：${std}
+- 歷史最高：${max}
+- 交易次數：{count}
+- 統計判斷：{stat_flag}（{stat_reason}）
+- 偏離程度：{deviation} 個標準差
+
+請綜合判斷這筆交易是否異常。考慮：
+1. 金額是否明顯偏離歷史平均
+2. 該消費在該分類下是否合理
+3. 是否可能是特殊情況（如聚餐、節日、一次性消費）
+
+請以 JSON 格式回答，只回覆 JSON：
 {{
     "is_anomaly": true 或 false,
-    "anomaly_type": "異常類型（如：金額偏高、頻率異常、疑似重複、無異常）",
+    "severity": "none" 或 "low" 或 "medium" 或 "high",
     "reason": "簡短說明原因（20字以內）",
-    "severity": "low" 或 "medium" 或 "high"（嚴重程度）
+    "suggestion": "給用戶的建議（20字以內，如果正常則為 null）"
 }}"""
 
+ANOMALY_PROMPT_NO_HISTORY = """你是一個專業的財務異常偵測助手。這筆交易沒有歷史數據可以比對，請根據常識判斷是否異常。
 
-# ============================================================================
-# 統計查詢
-# ============================================================================
+交易資訊：
+- 描述：{description}
+- 金額：${amount}
+- 分類：{category}
+- 商家：{merchant}
 
-def get_category_stats(user_id: int, category_id: int) -> Dict[str, Any]:
-    """從 DB 查詢該分類的歷史統計"""
-    today = date.today()
-    month_start = today.replace(day=1)
-    thirty_days_ago = today - timedelta(days=30)
-
-    # 該分類歷史平均和最高金額
-    result = execute_query("""
-        SELECT 
-            COALESCE(AVG(amount), 0) as avg_amount,
-            COALESCE(MAX(amount), 0) as max_amount
-        FROM transactions
-        WHERE user_id = %s AND category_id = %s
-    """, (user_id, category_id), fetch=True)
-
-    avg_amount = float(result[0]["avg_amount"]) if result else 0
-    max_amount = float(result[0]["max_amount"]) if result else 0
-
-    # 本月該分類消費總額和筆數
-    result = execute_query("""
-        SELECT 
-            COALESCE(SUM(amount), 0) as month_total,
-            COUNT(*) as month_count
-        FROM transactions
-        WHERE user_id = %s AND category_id = %s
-          AND transaction_date >= %s
-    """, (user_id, category_id, month_start), fetch=True)
-
-    month_total = float(result[0]["month_total"]) if result else 0
-    month_count = int(result[0]["month_count"]) if result else 0
-
-    # 過去30天同分類筆數
-    result = execute_query("""
-        SELECT COUNT(*) as recent_count
-        FROM transactions
-        WHERE user_id = %s AND category_id = %s
-          AND transaction_date >= %s
-    """, (user_id, category_id, thirty_days_ago), fetch=True)
-
-    recent_count = int(result[0]["recent_count"]) if result else 0
-
-    return {
-        "avg_amount": round(avg_amount, 0),
-        "max_amount": round(max_amount, 0),
-        "month_total": round(month_total, 0),
-        "month_count": month_count,
-        "recent_count": recent_count,
-    }
-
-
-def check_duplicate(user_id: int, amount: float, description: str) -> bool:
-    """檢查是否有疑似重複交易（同天同金額同描述）"""
-    result = execute_query("""
-        SELECT COUNT(*) as dup_count
-        FROM transactions
-        WHERE user_id = %s 
-          AND amount = %s
-          AND description = %s
-          AND transaction_date = CURRENT_DATE
-    """, (user_id, amount, description), fetch=True)
-
-    return int(result[0]["dup_count"]) > 0 if result else False
+請以 JSON 格式回答，只回覆 JSON：
+{{
+    "is_anomaly": true 或 false,
+    "severity": "none" 或 "low" 或 "medium" 或 "high",
+    "reason": "簡短說明原因（20字以內）",
+    "suggestion": "給用戶的建議（20字以內，如果正常則為 null）"
+}}"""
 
 
 # ============================================================================
 # LLM 回應解析
 # ============================================================================
 
-def parse_anomaly_response(response: str) -> Dict[str, Any]:
-    """解析 LLM 的異常偵測回應"""
+def parse_llm_response(response: str) -> Dict:
+    """解析 LLM 回應的 JSON"""
     try:
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("```")[1]
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
+        text = response.strip()
+        # 移除可能的 markdown 標記
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
 
-        start = cleaned.find("{")
-        end = cleaned.rfind("}") + 1
-        if start != -1 and end > start:
-            cleaned = cleaned[start:end]
-
-        result = json.loads(cleaned)
+        result = json.loads(text.strip())
         return {
-            "is_anomaly": result.get("is_anomaly", False),
-            "anomaly_type": result.get("anomaly_type", "無異常"),
+            "is_anomaly": bool(result.get("is_anomaly", False)),
+            "severity": result.get("severity", "none"),
             "reason": result.get("reason", ""),
-            "severity": result.get("severity", "low"),
+            "suggestion": result.get("suggestion"),
         }
-
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"異常偵測 JSON 解析失敗: {e}")
+    except Exception as e:
+        logger.warning(f"LLM 回應解析失敗: {e}, 原始回應: {response[:200]}")
         return {
             "is_anomaly": False,
-            "anomaly_type": "無異常",
-            "reason": "解析失敗，預設為正常",
-            "severity": "low",
+            "severity": "none",
+            "reason": "無法判斷",
+            "suggestion": None,
         }
 
 
@@ -153,77 +183,77 @@ def parse_anomaly_response(response: str) -> Dict[str, Any]:
 # LangGraph Node
 # ============================================================================
 
-def anomaly_detector_node(state: BookkeepingState) -> dict:
+def anomaly_detector_node(state: dict) -> dict:
     """
-    Anomaly Detector Node（LLM + 統計混合）
-    1. 從 DB 查歷史統計
-    2. 檢查重複交易
-    3. 用 LLM 綜合判斷是否異常
+    Anomaly Detector Node（LLM + 統計規則混合）
+    從 state 讀取交易資訊，判斷是否異常，寫回 state
     """
-    # 如果前面有錯誤，跳過
+    # 如果前面的 node 有錯誤，跳過
     if state.get("error"):
         return {}
 
-    user_id = state.get("user_id", 0)
     amount = state.get("amount", 0)
-    category_id = state.get("category_id")
-    category_name = state.get("category_name", "未分類")
+    category = state.get("category_name", "其他支出")
     description = state.get("description", "")
-    merchant = state.get("merchant", "")
+    merchant = state.get("merchant", "未知")
+
+    if amount <= 0:
+        return {
+            "is_anomaly": False,
+            "anomaly_reason": "金額無效，跳過異常偵測",
+        }
 
     try:
-        # 1. 檢查重複交易
-        if check_duplicate(user_id, amount, description):
-            return {
-                "is_anomaly": True,
-                "anomaly_reason": f"⚠️ 疑似重複記帳：今天已有一筆相同的「{description} ${amount}」",
-            }
+        # Step 1: 查歷史統計
+        stats = get_category_stats(category)
 
-        # 2. 查歷史統計（如果有分類）
-        stats = {"avg_amount": 0, "max_amount": 0, "month_total": 0, "month_count": 0, "recent_count": 0}
-        if category_id:
-            stats = get_category_stats(user_id, category_id)
-
-        # 3. 如果沒有歷史資料，視為正常（新用戶）
-        if stats["recent_count"] == 0 and stats["month_count"] == 0:
-            return {
-                "is_anomaly": False,
-                "anomaly_reason": None,
-            }
-
-        # 4. 用 LLM 綜合判斷
+        # Step 2: 取得模型
         model = get_taide_model()
         if not model.is_loaded:
             model.load()
 
-        prompt = ANOMALY_PROMPT.format(
-            avg_amount=stats["avg_amount"],
-            max_amount=stats["max_amount"],
-            month_total=stats["month_total"],
-            month_count=stats["month_count"],
-            recent_count=stats["recent_count"],
-            amount=amount,
-            category_name=category_name,
-            description=description,
-            merchant=merchant or "無",
-        )
-        response = model.generate(prompt, temperature=0.1, max_new_tokens=128)
+        # Step 3: 組合 prompt
+        if stats:
+            stat_result = stat_check(amount, stats)
+            prompt = ANOMALY_PROMPT.format(
+                description=description,
+                amount=amount,
+                category=category,
+                merchant=merchant or "未知",
+                avg=stats["avg"],
+                std=stats["std"],
+                max=stats["max"],
+                count=stats["count"],
+                stat_flag=stat_result["stat_flag"],
+                stat_reason=stat_result["reason"],
+                deviation=stat_result["deviation"],
+            )
+        else:
+            stat_result = {"stat_flag": "unknown"}
+            prompt = ANOMALY_PROMPT_NO_HISTORY.format(
+                description=description,
+                amount=amount,
+                category=category,
+                merchant=merchant or "未知",
+            )
 
-        # 5. 解析結果
-        parsed = parse_anomaly_response(response)
-
-        anomaly_reason = None
-        if parsed["is_anomaly"]:
-            anomaly_reason = f"⚠️ {parsed['anomaly_type']}：{parsed['reason']}"
+        # Step 4: LLM 判斷
+        response = model.generate(prompt, temperature=0.1, max_new_tokens=256)
+        llm_result = parse_llm_response(response)
 
         return {
-            "is_anomaly": parsed["is_anomaly"],
-            "anomaly_reason": anomaly_reason,
+            "is_anomaly": llm_result["is_anomaly"],
+            "anomaly_reason": llm_result["reason"],
+            "anomaly_severity": llm_result["severity"],
+            "anomaly_suggestion": llm_result["suggestion"],
+            "anomaly_stat_flag": stat_result["stat_flag"],
+            "anomaly_method": "llm+stats" if stats else "llm_only",
         }
 
     except Exception as e:
         logger.error(f"Anomaly Detector 錯誤: {e}")
         return {
             "is_anomaly": False,
-            "anomaly_reason": None,
+            "anomaly_reason": f"異常偵測失敗: {str(e)}",
+            "anomaly_method": "error",
         }
