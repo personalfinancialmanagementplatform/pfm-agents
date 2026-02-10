@@ -1,6 +1,13 @@
 """
 Bookkeeping Coordinator Agent
 記帳領域協調器
+Bookkeeping Coordinator Agent（舊版 - 已被 graph.py 取代）
+
+   此檔案為早期 class-based 設計，
+   現在的記帳流程改用 LangGraph 實作：
+   - src/agents/bookkeeping/graph.py（LangGraph 版本）
+   
+   保留此檔案作為設計 記錄原始的 A2A AgentCard 定義。
 """
 from typing import Any, Dict, Optional
 from ..base import BaseAgent, AgentCard, Task, Artifact, TaskStatus
