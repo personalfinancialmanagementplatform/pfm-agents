@@ -1,270 +1,258 @@
+
 """
-Budget Monitor Node - LangGraph 版本（LLM + DB）
-查詢預算目標，LLM 判斷交易歸屬，計算剩餘額度
+Budget Monitor Node - LangGraph 版本（LLM + 預算規則）
+1. 查詢用戶該分類的月預算和已花費（目前用 Mock）
+2. 計算使用百分比和剩餘額度
+3. LLM 判斷預算狀態並生成提醒
 """
 import json
 import logging
-from datetime import date
-from typing import Any, Dict, List
+from typing import Any, Dict, Optional
 
-from ....agents.base import BookkeepingState
 from ....models import get_taide_model
-from ....database.connection import execute_query
 
 logger = logging.getLogger(__name__)
+
+
+# ============================================================================
+# Mock 預算數據（之後替換成 DB 查詢）
+# ============================================================================
+
+MOCK_BUDGETS = {
+    "午餐": {"monthly_budget": 3000, "spent": 2500},
+    "晚餐": {"monthly_budget": 4000, "spent": 2800},
+    "早餐": {"monthly_budget": 1500, "spent": 900},
+    "飲料": {"monthly_budget": 1000, "spent": 750},
+    "交通": {"monthly_budget": 2000, "spent": 1200},
+    "購物": {"monthly_budget": 3000, "spent": 1500},
+    "娛樂": {"monthly_budget": 2000, "spent": 1800},
+    "醫療": {"monthly_budget": 2000, "spent": 300},
+    "其他支出": {"monthly_budget": 3000, "spent": 1000},
+}
+
+# 整體月預算
+MOCK_TOTAL_BUDGET = {
+    "monthly_budget": 25000,
+    "total_spent": 13750,
+}
+
+
+def get_budget_info(category_name: str) -> Optional[Dict]:
+    """
+    取得該分類的預算資訊
+    TODO: 之後改成從 PostgreSQL 查詢
+    """
+    if category_name in MOCK_BUDGETS:
+        return MOCK_BUDGETS[category_name]
+
+    for key, budget in MOCK_BUDGETS.items():
+        if key in category_name or category_name in key:
+            return budget
+
+    return None
+
+
+def get_total_budget() -> Dict:
+    """
+    取得整體月預算
+    TODO: 之後改成從 PostgreSQL 查詢
+    """
+    return MOCK_TOTAL_BUDGET
+
+
+# ============================================================================
+# 預算計算
+# ============================================================================
+
+def calculate_budget_status(budget_info: Dict, new_amount: float) -> Dict:
+    """
+    計算加上這筆消費後的預算狀態
+    """
+    monthly_budget = budget_info["monthly_budget"]
+    already_spent = budget_info["spent"]
+    after_spent = already_spent + new_amount
+    remaining = monthly_budget - after_spent
+    usage_pct = round(after_spent / monthly_budget * 100, 1) if monthly_budget > 0 else 0
+
+    # 判斷等級
+    if usage_pct >= 100:
+        level = "exceeded"
+    elif usage_pct >= 90:
+        level = "critical"
+    elif usage_pct >= 75:
+        level = "warning"
+    elif usage_pct >= 50:
+        level = "normal"
+    else:
+        level = "healthy"
+
+    return {
+        "monthly_budget": monthly_budget,
+        "already_spent": already_spent,
+        "after_spent": after_spent,
+        "remaining": remaining,
+        "usage_pct": usage_pct,
+        "level": level,
+    }
 
 
 # ============================================================================
 # LLM Prompt
 # ============================================================================
 
-BUDGET_MATCH_PROMPT = """你是一個預算管理助手。用戶設定了以下預算目標，請判斷這筆交易屬於哪個預算。
+BUDGET_PROMPT = """你是一個專業的預算監控助手。根據以下預算狀況，給用戶簡短的提醒。
 
-用戶的預算目標：
-{budgets_list}
-
-這筆新交易：
+這筆交易：
 - 描述：{description}
-- 分類：{category_name}
-- 商家：{merchant}
-- 金額：{amount} 元
-- 類型：{transaction_type}
+- 金額：${amount}
+- 分類：{category}
+
+該分類預算狀況：
+- 月預算：${monthly_budget}
+- 記帳前已花費：${already_spent}
+- 記帳後已花費：${after_spent}
+- 剩餘額度：${remaining}
+- 使用百分比：{usage_pct}%
+- 狀態：{level}
+
+整體月預算：
+- 總月預算：${total_budget}
+- 總已花費：${total_spent}
+- 總剩餘：${total_remaining}
 
 請以 JSON 格式回答，只回覆 JSON：
 {{
-    "matched_budget_id": 匹配的預算 ID（整數，若都不匹配則 null）,
-    "matched_budget_name": "匹配的預算名稱（若不匹配則 null）",
-    "reason": "簡短說明匹配原因（15字以內）"
+    "budget_warning": "給用戶的預算提醒（30字以內，friendly 語氣。如果 healthy 則為 null）",
+    "budget_level": "{level}",
+    "saving_tip": "省錢小建議（20字以內，如果不需要則為 null）"
 }}"""
 
+BUDGET_PROMPT_NO_BUDGET = """你是一個專業的預算監控助手。這個分類目前沒有設定預算。
 
-# ============================================================================
-# DB 查詢
-# ============================================================================
+這筆交易：
+- 描述：{description}
+- 金額：${amount}
+- 分類：{category}
 
-def get_active_budgets(user_id: int) -> List[Dict[str, Any]]:
-    """查詢用戶目前有效的預算"""
-    today = date.today()
-    result = execute_query("""
-        SELECT b.budget_id, b.amount as budget_amount, b.period,
-               b.start_date, b.end_date,
-               c.category_id, c.name as category_name
-        FROM budgets b
-        LEFT JOIN categories c ON b.category_id = c.category_id
-        WHERE b.user_id = %s
-          AND b.start_date <= %s
-          AND b.end_date >= %s
-        ORDER BY b.budget_id
-    """, (user_id, today, today), fetch=True)
-    return result or []
-
-
-def get_budget_spent(user_id: int, category_id: int, start_date, end_date) -> float:
-    """查詢某預算期間內該分類已花費金額"""
-    result = execute_query("""
-        SELECT COALESCE(SUM(amount), 0) as spent
-        FROM transactions
-        WHERE user_id = %s
-          AND category_id = %s
-          AND transaction_type = 'expense'
-          AND transaction_date >= %s
-          AND transaction_date <= %s
-    """, (user_id, category_id, start_date, end_date), fetch=True)
-    return float(result[0]["spent"]) if result else 0
-
-
-def get_financial_goals_as_budgets(user_id: int) -> List[Dict[str, Any]]:
-    """從 financial_goals 表取得儲蓄目標（轉成預算格式）"""
-    result = execute_query("""
-        SELECT goal_id, name, target_amount, current_amount, deadline, status
-        FROM financial_goals
-        WHERE user_id = %s AND status = 'active'
-        ORDER BY goal_id
-    """, (user_id,), fetch=True)
-    return result or []
+請以 JSON 格式回答，只回覆 JSON：
+{{
+    "budget_warning": null,
+    "budget_level": "no_budget",
+    "saving_tip": "建議為「{category}」設定每月預算，更好掌握開銷"
+}}"""
 
 
 # ============================================================================
 # LLM 回應解析
 # ============================================================================
 
-def parse_budget_match_response(response: str) -> Dict[str, Any]:
-    """解析 LLM 的預算匹配回應"""
+def parse_llm_response(response: str) -> Dict:
+    """解析 LLM 回應的 JSON"""
     try:
-        cleaned = response.strip()
-        if cleaned.startswith("```"):
-            cleaned = cleaned.split("```")[1]
-            if cleaned.startswith("json"):
-                cleaned = cleaned[4:]
-        if cleaned.endswith("```"):
-            cleaned = cleaned[:-3]
-        cleaned = cleaned.strip()
+        text = response.strip()
+        if "```json" in text:
+            text = text.split("```json")[1].split("```")[0]
+        elif "```" in text:
+            text = text.split("```")[1].split("```")[0]
 
-        start = cleaned.find("{")
-        end = cleaned.rfind("}") + 1
-        if start != -1 and end > start:
-            cleaned = cleaned[start:end]
-
-        result = json.loads(cleaned)
+        result = json.loads(text.strip())
         return {
-            "matched_budget_id": result.get("matched_budget_id"),
-            "matched_budget_name": result.get("matched_budget_name"),
-            "reason": result.get("reason", ""),
+            "budget_warning": result.get("budget_warning"),
+            "budget_level": result.get("budget_level", "unknown"),
+            "saving_tip": result.get("saving_tip"),
         }
-
-    except (json.JSONDecodeError, ValueError) as e:
-        logger.warning(f"預算匹配 JSON 解析失敗: {e}")
+    except Exception as e:
+        logger.warning(f"LLM 回應解析失敗: {e}, 原始回應: {response[:200]}")
         return {
-            "matched_budget_id": None,
-            "matched_budget_name": None,
-            "reason": "解析失敗",
+            "budget_warning": None,
+            "budget_level": "unknown",
+            "saving_tip": None,
         }
-
-
-# ============================================================================
-# 預算等級計算
-# ============================================================================
-
-def calculate_budget_level(spent: float, budget_amount: float, new_amount: float) -> Dict[str, Any]:
-    """計算預算使用等級和警告訊息"""
-    total_after = spent + new_amount
-    percentage = (total_after / budget_amount * 100) if budget_amount > 0 else 0
-    remaining = budget_amount - total_after
-
-    if percentage >= 100:
-        level = "exceeded"
-        warning = f"🔴 已超支！預算 ${budget_amount:.0f}，已花 ${total_after:.0f}，超出 ${abs(remaining):.0f}"
-    elif percentage >= 80:
-        level = "high"
-        warning = f"🟡 接近上限！預算 ${budget_amount:.0f}，已花 ${total_after:.0f}，剩餘 ${remaining:.0f}（{100-percentage:.0f}%）"
-    elif percentage >= 50:
-        level = "medium"
-        warning = f"📊 已過半！預算 ${budget_amount:.0f}，已花 ${total_after:.0f}，剩餘 ${remaining:.0f}（{100-percentage:.0f}%）"
-    else:
-        level = "ok"
-        warning = None
-
-    return {
-        "level": level,
-        "percentage": round(percentage, 1),
-        "spent_before": spent,
-        "spent_after": total_after,
-        "remaining": remaining,
-        "budget_amount": budget_amount,
-        "warning": warning,
-    }
 
 
 # ============================================================================
 # LangGraph Node
 # ============================================================================
 
-def budget_monitor_node(state: BookkeepingState) -> dict:
+def budget_monitor_node(state: dict) -> dict:
     """
-    Budget Monitor Node
-    1. 查 DB 取得預算目標
-    2. LLM 判斷這筆交易屬於哪個預算
-    3. 計算已花費 & 剩餘額度
-    4. 回傳結果給目標 Domain
+    Budget Monitor Node（LLM + 預算規則）
+    從 state 讀取交易資訊，檢查預算狀態，寫回 state
     """
-    # 如果前面有錯誤，跳過
     if state.get("error"):
         return {}
 
-    # 只處理支出
-    if state.get("transaction_type") != "expense":
+    amount = state.get("amount", 0)
+    category = state.get("category_name", "其他支出")
+    description = state.get("description", "")
+
+    if amount <= 0:
         return {
             "budget_warning": None,
-            "budget_level": "ok",
+            "budget_level": "skip",
         }
 
-    user_id = state.get("user_id", 0)
-    amount = state.get("amount", 0)
-    category_name = state.get("category_name", "未分類")
-    description = state.get("description", "")
-    merchant = state.get("merchant", "")
+    # 只有支出才需要檢查預算
+    if state.get("transaction_type") == "income":
+        return {
+            "budget_warning": None,
+            "budget_level": "income",
+        }
 
     try:
-        # 1. 查詢有效預算
-        budgets = get_active_budgets(user_id)
+        # Step 1: 查預算
+        budget_info = get_budget_info(category)
+        total_budget = get_total_budget()
 
-        # 也查 financial_goals
-        goals = get_financial_goals_as_budgets(user_id)
-
-        if not budgets and not goals:
-            return {
-                "budget_warning": None,
-                "budget_level": "ok",
-            }
-
-        # 2. 組合預算清單給 LLM
-        budgets_list_parts = []
-        budget_lookup = {}
-
-        for b in budgets:
-            label = f"[預算 ID:{b['budget_id']}] {b['category_name']} - 每月 ${float(b['budget_amount']):.0f}"
-            budgets_list_parts.append(label)
-            budget_lookup[b["budget_id"]] = b
-
-        for g in goals:
-            label = f"[目標 ID:G{g['goal_id']}] {g['name']} - 目標 ${float(g['target_amount']):.0f}"
-            budgets_list_parts.append(label)
-
-        budgets_list = "\n".join(budgets_list_parts)
-
-        # 3. LLM 判斷這筆屬於哪個預算
+        # Step 2: 取得模型
         model = get_taide_model()
         if not model.is_loaded:
             model.load()
 
-        prompt = BUDGET_MATCH_PROMPT.format(
-            budgets_list=budgets_list,
-            description=description,
-            category_name=category_name,
-            merchant=merchant or "無",
-            amount=amount,
-            transaction_type="支出",
-        )
-        response = model.generate(prompt, temperature=0.1, max_new_tokens=128)
-        parsed = parse_budget_match_response(response)
+        # Step 3: 組合 prompt
+        if budget_info:
+            status = calculate_budget_status(budget_info, amount)
+            total_remaining = total_budget["monthly_budget"] - total_budget["total_spent"]
 
-        matched_id = parsed["matched_budget_id"]
-
-        # 4. 如果匹配到預算，計算剩餘額度
-        if matched_id and matched_id in budget_lookup:
-            matched_budget = budget_lookup[matched_id]
-            spent = get_budget_spent(
-                user_id,
-                matched_budget["category_id"],
-                matched_budget["start_date"],
-                matched_budget["end_date"],
+            prompt = BUDGET_PROMPT.format(
+                description=description,
+                amount=amount,
+                category=category,
+                monthly_budget=status["monthly_budget"],
+                already_spent=status["already_spent"],
+                after_spent=status["after_spent"],
+                remaining=status["remaining"],
+                usage_pct=status["usage_pct"],
+                level=status["level"],
+                total_budget=total_budget["monthly_budget"],
+                total_spent=total_budget["total_spent"],
+                total_remaining=total_remaining,
+            )
+        else:
+            status = {"level": "no_budget", "usage_pct": 0, "remaining": 0}
+            prompt = BUDGET_PROMPT_NO_BUDGET.format(
+                description=description,
+                amount=amount,
+                category=category,
             )
 
-            level_info = calculate_budget_level(spent, float(matched_budget["budget_amount"]), amount)
+        # Step 4: LLM 判斷
+        response = model.generate(prompt, temperature=0.1, max_new_tokens=256)
+        llm_result = parse_llm_response(response)
 
-            return {
-                "budget_warning": level_info["warning"],
-                "budget_level": level_info["level"],
-                "budget_detail": {
-                    "budget_name": matched_budget["category_name"],
-                    "budget_amount": level_info["budget_amount"],
-                    "spent_before": level_info["spent_before"],
-                    "spent_after": level_info["spent_after"],
-                    "remaining": level_info["remaining"],
-                    "percentage": level_info["percentage"],
-                    "match_reason": parsed["reason"],
-                },
-            }
-
-        # 沒匹配到任何預算
         return {
-            "budget_warning": None,
-            "budget_level": "ok",
+            "budget_warning": llm_result["budget_warning"],
+            "budget_level": status["level"],
+            "budget_usage_pct": status.get("usage_pct", 0),
+            "budget_remaining": status.get("remaining", 0),
+            "budget_method": "llm+rules" if budget_info else "llm_only",
         }
 
     except Exception as e:
         logger.error(f"Budget Monitor 錯誤: {e}")
         return {
             "budget_warning": None,
-            "budget_level": "ok",
+            "budget_level": "error",
+            "budget_method": "error",
         }
+

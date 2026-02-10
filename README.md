@@ -21,29 +21,72 @@ uvicorn src.api.main:app --reload --port 8000
 ## 📁 專案結構
 ```
 pfm-agents/
-├── config/              # 設定檔
-├── data/                # 知識庫與 prompts
-├── docs/                # 文件
-├── src/                 # 原始碼
-│   ├── agents/          # 各領域 Agent（LangGraph Nodes）
-│   │   ├── base/        # State 定義與共用結構
-│   │   └── bookkeeping/ # 記帳 Domain
-│   │       ├── processing/     # 交易解析
-│   │       ├── classification/ # 分類
-│   │       └── analysis/       # 異常偵測、預算監控
-│   ├── database/        # 資料庫模組
-│   │   ├── connection.py       # PostgreSQL 連線
-│   │   ├── crud.py             # PostgreSQL CRUD
-│   │   ├── mongo_connection.py # MongoDB 連線
-│   │   ├── mongo_crud.py       # MongoDB CRUD
-│   │   ├── redis_connection.py # Redis 連線
-│   │   └── redis_crud.py       # Redis CRUD
-│   ├── mcp/             # MCP 工具
-│   ├── protocols/       # A2A 協議
-│   ├── models/          # TAIDE 模型
-│   └── api/             # FastAPI
-└── tests/               # 測試
+├── config/                      # 設定檔
+│   └── model/
+│       └── taide.yaml           # TAIDE 模型配置
+├── data/                        # 知識庫與 prompts
+│   ├── knowledge/               # 類別/商家知識庫
+│   └── prompts/                 # Prompt 模板
+├── docs/                        # 架構文件
+├── scripts/                     # 工具腳本
+│   └── download_model.py        # TAIDE 模型下載
+├── src/                         # 原始碼
+│   ├── agents/                  # 各領域 Agent（LangGraph Nodes）
+│   │   ├── base/                # BookkeepingState 定義與共用結構
+│   │   └── bookkeeping/         # 記帳 Domain
+│   │       ├── coordinator.py          # Bookkeeping Coordinator
+│   │       ├── processing/             # Input Processing Layer
+│   │       │   └── transaction_parser.py   # 交易解析（純 LLM）
+│   │       ├── classification/         # Classification Layer
+│   │       │   └── category_classifier.py  # 分類（純 LLM）
+│   │       ├── analysis/               # Analysis Layer
+│   │       │   ├── anomaly_detector.py     # 異常偵測（LLM + 統計規則）
+│   │       │   └── budget_monitor.py       # 預算監控（LLM + 預算規則）
+│   │       └── output/                 # Output Layer（待開發）
+│   ├── database/                # 資料庫模組
+│   │   ├── connection.py               # PostgreSQL 連線
+│   │   ├── create_tables.py            # 建表腳本
+│   │   ├── crud.py                     # PostgreSQL CRUD
+│   │   ├── mongo_connection.py         # MongoDB 連線
+│   │   ├── mongo_crud.py              # MongoDB CRUD
+│   │   ├── redis_connection.py         # Redis 連線
+│   │   └── redis_crud.py              # Redis CRUD
+│   ├── models/                  # TAIDE 模型載入器
+│   │   └── taide.py
+│   ├── mcp/                     # MCP 工具
+│   ├── protocols/               # A2A 協議
+│   └── api/                     # FastAPI
+│       ├── main.py
+│       └── routes/
+│           ├── bookkeeping.py
+│           └── health.py
+├── tests/                       # 測試
+│   └── test_transaction_parser.py
+├── models/                      # TAIDE-LX-7B 模型檔案（本地）
+├── .env.example
+├── requirements.txt
+└── README.md
 ```
+
+## 🔧 技術架構
+
+### 核心技術
+| 技術 | 用途 | 說明 |
+|------|------|------|
+| **TAIDE-LX-7B** | LLM | 繁體中文語言模型，用於所有語意理解任務 |
+| **LangGraph** | Agent 框架 | 將 Agent 設計為 Node，透過 State 流轉資料 |
+| **A2A Protocol** | Agent 間通訊 | 跨 Domain Agent 協作（如記帳→目標追蹤） |
+| **MCP** | 工具協議 | Agent 呼叫外部工具（DB 查詢、寫入等） |
+| **FastAPI** | 後端 | API 服務 |
+| **PostgreSQL** | 主資料庫 | 使用者、交易、預算、目標 |
+| **MongoDB** | 彈性儲存 | 對話狀態、日誌、事件、新聞 |
+| **Redis** | 快取 | Session、預算快取、限流 |
+
+### 設計原則
+- 所有 Node 皆使用 **TAIDE LLM** 進行語意理解，不使用 rule-based
+- 各 Node 透過 **BookkeepingState** 共享狀態流轉
+- 跨 Domain 通訊採用 **A2A Protocol**，各 Domain 獨立開發
+- DB 尚未連上的 Node 使用 **Mock 數據**，之後替換
 
 ## 💾 資料庫架構
 
@@ -61,59 +104,38 @@ pfm-agents/
 
 ### MongoDB（彈性數據）
 
-儲存非結構化 / 半結構化資料。
-
 | Collection | 用途 |
 |------------|------|
 | conversation_states | Agent 對話狀態 |
-| llm_logs | LLM 解析日誌（輸入/輸出/延遲） |
+| llm_logs | LLM 解析日誌 |
 | events | 事件總線（Agent 間通訊記錄） |
 | financial_news | 財經新聞 |
 | user_behaviors | 使用者行為記錄 |
-| goal_strategies | AI 目標策略建議 |
 
 ### Redis（快取與即時數據）
-
-即時快取，提升回應速度。
 
 | 功能 | Key 格式 | 過期時間 |
 |------|----------|----------|
 | 使用者 Session | `session:{user_id}` | 30 分鐘 |
 | 預算快取 | `budget:{user_id}` | 1 小時 |
 | 分類快取 | `categories:all` | 24 小時 |
-| Rate Limiting | `rate:{user_id}` | 1 分鐘 |
 | 當日消費總額 | `daily_total:{user_id}:{date}` | 2 小時 |
-
-### 資料庫分工原則
-```
-PostgreSQL：結構固定、需要 JOIN、需要交易一致性
-  → 使用者、交易、預算、目標
-
-MongoDB：結構彈性、寫入頻繁、不需 JOIN
-  → 對話狀態、日誌、事件、新聞、行為分析
-
-Redis：高速讀寫、短期暫存、即時數據
-  → Session、快取、限流、當日統計
-```
 
 ## 🤖 Agent 架構
 
-| Domain | 主要功能 |
+| Domain | 主要功能 | 
 |--------|----------|
-| 記帳 Bookkeeping | 交易解析、分類、異常偵測 |
-| 目標 Goals | 目標追蹤、進度預測 |
-| 投資 Investment | ETF/股票分析 |
-| 新聞 News | 財經新聞摘要 |
-| 報告 Reports | 財務報告生成 |
-| 陪伴 Companion | 主動洞察、互動對話 |
+| 記帳 Bookkeeping | 交易解析、分類、異常偵測、預算監控 |
+| 金融知識 Finance Knowledge | ETF/指數/基金知識問答 | 
+| 目標 Goals | 目標追蹤、進度預測 | 
+| 投資 Investment | ETF/股票分析 | 
+| 新聞 News | 財經新聞摘要 | 
+| 報告 Reports | 財務報告生成 | 
+| 陪伴 Companion | 主動洞察、互動對話 | 
 
----
+## 📒 記帳 Domain（LangGraph）
 
-## 📒 記帳 Domain 架構（LangGraph）
-
-使用 **LangGraph** 將各 Agent 改為 **Node**，以 **BookkeepingState** 作為共享狀態流轉。所有 Node 皆使用 **TAIDE LLM** 進行語意理解，不使用 rule-based。
-
-### LangGraph State
+### BookkeepingState
 ```python
 class BookkeepingState(TypedDict):
     # 輸入
@@ -132,7 +154,7 @@ class BookkeepingState(TypedDict):
     response_message, error
 ```
 
-### Record 流程（LangGraph Graph）
+### Record 流程
 ```
 raw_text
   ↓
@@ -140,57 +162,35 @@ transaction_parser_node（TAIDE 解析金額/商家/描述，理解錯字口語�
   ↓
 category_classifier_node（TAIDE 判斷分類）
   ↓
-anomaly_detector_node（DB 查歷史統計 + TAIDE 綜合判斷異常）
+anomaly_detector_node（統計規則 + TAIDE 綜合判斷異常）
   ↓
-budget_monitor_node（DB 查預算目標 + TAIDE 判斷歸屬 + 計算剩餘額度）
+budget_monitor_node（預算規則 + TAIDE 生成提醒）
   ↓
 db_save_node（儲存到 PostgreSQL）
   ↓
 summary_generator_node（TAIDE 生成回覆訊息）
 ```
 
-### Node 清單與開發進度
+### 開發進度
 
-#### 📝 Processing Layer
-
-| Node | 職責 | 方式 | 狀態 |
-|------|------|------|------|
-| transaction_parser_node | 自然語言 → 結構化交易資料（理解錯字、口語） | 純 TAIDE LLM | ✅ 完成 |
-
-#### 🏷️ Classification Layer
-
-| Node | 職責 | 方式 | 狀態 |
-|------|------|------|------|
-| category_classifier_node | 判斷交易所屬分類 | 純 TAIDE LLM + DB 分類表 | ✅ 完成 |
-
-#### 📊 Analysis Layer
-
-| Node | 職責 | 方式 | 狀態 |
-|------|------|------|------|
-| anomaly_detector_node | 異常消費偵測（重複/金額偏高/頻率異常） | TAIDE LLM + DB 統計 | ✅ 完成 |
-| budget_monitor_node | 預算匹配、已花費計算、剩餘額度、超支提醒 | TAIDE LLM + DB 預算查詢 | ✅ 完成 |
-
-#### 💾 Storage Layer
-
-| Node | 職責 | 方式 | 狀態 |
-|------|------|------|------|
-| db_save_node | 儲存交易到 PostgreSQL | DB CRUD | 🔲 待開發 |
-
-#### 📋 Output Layer
-
-| Node | 職責 | 方式 | 狀態 |
-|------|------|------|------|
-| summary_generator_node | 生成自然語言回覆訊息 | TAIDE LLM | 🔲 待開發 |
-
-#### 🎯 Coordinator
-
-| 項目 | 狀態 |
-|------|------|
-| LangGraph Graph（串接所有 Node） | 🔲 待開發 |
-| Intent Router（record/query/analyze 分流） | 🔲 待開發 |
+| Layer | Node | 方式 | 狀態 |
+|-------|------|------|------|
+| Processing | transaction_parser_node | 純 TAIDE LLM |  
+| Classification | category_classifier_node | 純 TAIDE LLM + DB 分類表 |  
+| Analysis | anomaly_detector_node | TAIDE LLM + 統計規則（Mock） |  
+| Analysis | budget_monitor_node | TAIDE LLM + 預算規則（Mock） | 
+| Storage | db_save_node | DB CRUD | 
+| Output | summary_generator_node | TAIDE LLM | 
+| Coordinator | LangGraph Graph 串接 | LangGraph | 
+| Coordinator | Intent Router | TAIDE LLM | 
 
 ### 跨 Domain 通訊（A2A）
 ```
+記帳完成 → A2A → 目標 Domain：「用戶花了 $150，請更新儲蓄目標進度」
+異常消費 → A2A → 陪伴 Domain：「偵測到異常消費，請斟酌提醒時機」
+投資支出 → A2A → 投資 Domain：「用戶購買 0050，請記錄投資交易」
+月底統計 → A2A → 報告 Domain：「請求記帳數據以生成月度報告」
+
 記帳 Domain → 目標 Domain
   budget_monitor_node 計算預算使用狀況
   → A2A 傳送至目標 Domain
