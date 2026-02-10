@@ -18,6 +18,16 @@ cp .env.example .env
 uvicorn src.api.main:app --reload --port 8000
 ```
 
+## ▶️ Demo：記帳流程
+```bash
+# Mock 模式測試完整記帳流程
+USE_MOCK_MODEL=true python -c "
+from src.agents.bookkeeping.graph import run_bookkeeping
+result = run_bookkeeping('今天吃麥當勞150', user_id=1)
+print('回覆:', result['response_message'])
+"
+```
+
 ## 📁 專案結構
 ```
 pfm-agents/
@@ -34,6 +44,7 @@ pfm-agents/
 │   ├── agents/                  # 各領域 Agent（LangGraph Nodes）
 │   │   ├── base/                # BookkeepingState 定義與共用結構
 │   │   └── bookkeeping/         # 記帳 Domain
+│   │       ├── graph.py                #  LangGraph 流程串接
 │   │       ├── coordinator.py          # Bookkeeping Coordinator
 │   │       ├── processing/             # Input Processing Layer
 │   │       │   └── transaction_parser.py   # 交易解析（純 LLM）
@@ -42,7 +53,10 @@ pfm-agents/
 │   │       ├── analysis/               # Analysis Layer
 │   │       │   ├── anomaly_detector.py     # 異常偵測（LLM + 統計規則）
 │   │       │   └── budget_monitor.py       # 預算監控（LLM + 預算規則）
-│   │       └── output/                 # Output Layer（待開發）
+│   │       ├── storage/                # Storage Layer
+│   │       │   └── db_save.py              # DB 儲存（Mock → PostgreSQL）
+│   │       └── output/                 # Output Layer
+│   │           └── summary_generator.py    # 回覆訊息生成（LLM + Fallback）
 │   ├── database/                # 資料庫模組
 │   │   ├── connection.py               # PostgreSQL 連線
 │   │   ├── create_tables.py            # 建表腳本
@@ -123,17 +137,19 @@ pfm-agents/
 
 ## 🤖 Agent 架構
 
-| Domain | 主要功能 | 
+| Domain | 主要功能 |
 |--------|----------|
 | 記帳 Bookkeeping | 交易解析、分類、異常偵測、預算監控 |
-| 金融知識 Finance Knowledge | ETF/指數/基金知識問答 | 
-| 目標 Goals | 目標追蹤、進度預測 | 
-| 投資 Investment | ETF/股票分析 | 
-| 新聞 News | 財經新聞摘要 | 
-| 報告 Reports | 財務報告生成 | 
-| 陪伴 Companion | 主動洞察、互動對話 | 
+| 金融知識 Finance Knowledge | ETF/指數/基金知識問答 |
+| 目標 Goals | 目標追蹤、進度預測 |
+| 投資 Investment | ETF/股票分析 |
+| 新聞 News | 財經新聞摘要 |
+| 報告 Reports | 財務報告生成 |
+| 陪伴 Companion | 主動洞察、互動對話 |
 
 ## 📒 記帳 Domain（LangGraph）
+
+使用 **LangGraph** 將各 Agent 改為 **Node**，以 **BookkeepingState** 作為共享狀態流轉。所有 Node 皆使用 **TAIDE LLM** 進行語意理解。
 
 ### BookkeepingState
 ```python
@@ -154,35 +170,37 @@ class BookkeepingState(TypedDict):
     response_message, error
 ```
 
-### Record 流程
+### Record 流程（LangGraph Graph）
 ```
-raw_text
+用戶輸入 raw_text
   ↓
 transaction_parser_node（TAIDE 解析金額/商家/描述，理解錯字口語）
-  ↓
+  ↓ 解析失敗 → 直接跳到 summary（錯誤處理）
 category_classifier_node（TAIDE 判斷分類）
   ↓
-anomaly_detector_node（統計規則 + TAIDE 綜合判斷異常）
+anomaly_detector_node（統計規則初篩 + TAIDE 綜合判斷異常）
   ↓
-budget_monitor_node（預算規則 + TAIDE 生成提醒）
+budget_monitor_node（預算規則計算 + TAIDE 生成提醒）
   ↓
 db_save_node（儲存到 PostgreSQL）
   ↓
-summary_generator_node（TAIDE 生成回覆訊息）
+summary_generator_node（TAIDE 生成回覆 / Fallback 規則生成）
+  ↓
+回覆用戶
 ```
 
 ### 開發進度
 
 | Layer | Node | 方式 | 狀態 |
 |-------|------|------|------|
-| Processing | transaction_parser_node | 純 TAIDE LLM |  
-| Classification | category_classifier_node | 純 TAIDE LLM + DB 分類表 |  
-| Analysis | anomaly_detector_node | TAIDE LLM + 統計規則（Mock） |  
-| Analysis | budget_monitor_node | TAIDE LLM + 預算規則（Mock） | 
-| Storage | db_save_node | DB CRUD | 
-| Output | summary_generator_node | TAIDE LLM | 
-| Coordinator | LangGraph Graph 串接 | LangGraph | 
-| Coordinator | Intent Router | TAIDE LLM | 
+| Processing | transaction_parser_node | 純 TAIDE LLM |  完成 |
+| Classification | category_classifier_node | 純 TAIDE LLM + DB 分類表 |  完成 |
+| Analysis | anomaly_detector_node | TAIDE LLM + 統計規則（Mock） |  完成 |
+| Analysis | budget_monitor_node | TAIDE LLM + 預算規則（Mock） |  完成 |
+| Storage | db_save_node | DB CRUD（Mock） |  完成 |
+| Output | summary_generator_node | TAIDE LLM + Fallback |  完成 |
+| Coordinator | LangGraph Graph 串接 | LangGraph |  完成 |
+| Coordinator | Intent Router（record/query/analyze） | TAIDE LLM | 待開發 |
 
 ### 跨 Domain 通訊（A2A）
 ```
@@ -190,11 +208,6 @@ summary_generator_node（TAIDE 生成回覆訊息）
 異常消費 → A2A → 陪伴 Domain：「偵測到異常消費，請斟酌提醒時機」
 投資支出 → A2A → 投資 Domain：「用戶購買 0050，請記錄投資交易」
 月底統計 → A2A → 報告 Domain：「請求記帳數據以生成月度報告」
-
-記帳 Domain → 目標 Domain
-  budget_monitor_node 計算預算使用狀況
-  → A2A 傳送至目標 Domain
-  → 目標 Domain 提醒使用者
 ```
 
 ### MCP Tools
@@ -205,7 +218,13 @@ mcp_tools:
   - database_update   # 更新交易紀錄
 ```
 
----
+## 🌿 Branch 說明
+
+| Branch | 內容 | 狀態 |
+|--------|------|------|
+| `main` | 穩定版本，各 branch 完成後 merge | — |
+| `bookkeeping` | 記帳 Domain 完整 LangGraph 流程 | 開發中 |
+| `finance-knowledge` | 金融知識 Agent（ETF/指數/基金知識庫） | PR 審核中 |
 
 ## 📚 技術棧
 
