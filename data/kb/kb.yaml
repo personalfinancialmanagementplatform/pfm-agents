@@ -1,0 +1,403 @@
+entries:
+
+  # ===== ETF 基礎概念 =====
+
+  - id: etf_intro
+    tags: [ETF, 指數, 基金, 台股]
+    title: ETF 是什麼？
+    level: beginner
+    summary: ETF 可以想成一個「股票組合包」，買一張 ETF，就等於同時買到一籃子股票或資產。
+    key_points:
+      - ETF 通常追蹤某個指數或一組資產
+      - 可以在股市像股票一樣買賣
+      - 成本通常比主動型基金低，但仍有費用
+    example: 每月固定買一張 0050，就像每月固定買一籃台灣大型公司股票。
+    pitfalls:
+      - 以為 ETF 一定不會賠錢
+      - 只看配息，忽略價格波動
+    related: [index_intro, total_return]
+
+  - id: index_intro
+    tags: [指數, ETF]
+    title: 指數是什麼？ETF 為什麼要追蹤指數？
+    level: beginner
+    summary: 指數是用來代表一整體市場或一群股票表現的數字，ETF 追蹤指數是為了反映整體市場走勢。
+    key_points:
+      - 指數不是商品，不能直接買
+      - ETF 透過追蹤指數，讓投資人參與市場
+      - 指數上漲或下跌，ETF 通常也會跟著變動
+    example: 台灣加權指數上漲，追蹤它的 ETF 通常也會上漲。
+    pitfalls:
+      - 以為指數一定長期向上
+    related: [etf_intro]
+
+  - id: etf_vs_fund
+    tags: [ETF, 共同基金]
+    title: ETF 跟共同基金有什麼不同？
+    level: beginner
+    summary: ETF 和共同基金都是把資金集中投資，但買賣方式、費用與透明度不同。
+    key_points:
+      - ETF 可以在盤中即時買賣
+      - 共同基金通常一天只計價一次
+      - ETF 費用率通常較低
+    example: ETF 像是即時交易的商品，共同基金像是每天結帳一次。
+    pitfalls:
+      - 以為兩者風險完全不同
+    related: [expense_ratio]
+
+  - id: expense_ratio
+    tags: [ETF, 費用率]
+    title: 費用率是什麼？為什麼會影響長期報酬？
+    level: beginner
+    summary: 費用率是每年從基金資產中扣除的管理成本，長期下來會影響實際報酬。
+    key_points:
+      - 費用率會每天慢慢扣
+      - 長期投資時，小差距也會累積成大差距
+      - 不代表費用低就一定好
+    example: 每年 1% 的費用，看似不多，但 20 年下來差距很明顯。
+    pitfalls:
+      - 只比較費用，不看產品本質
+    related: [total_return]
+
+  - id: tracking_error
+    tags: [ETF, 追蹤誤差]
+    title: 追蹤誤差是什麼？會帶來什麼影響？
+    level: beginner
+    summary: 追蹤誤差是 ETF 實際表現與追蹤指數之間的差距。
+    key_points:
+      - 可能來自費用、交易成本
+      - 長期誤差過大代表追蹤品質不佳
+    example: 指數漲 10%，ETF 只漲 8%，中間差距就是誤差。
+    pitfalls:
+      - 短期誤差過度解讀
+    related: [expense_ratio]
+
+  - id: etf_liquidity
+    tags: [ETF, 流動性]
+    title: ETF 的流動性是什麼？成交量重要嗎？
+    level: beginner
+    summary: 流動性代表 ETF 是否容易買賣，成交量通常是重要參考。
+    key_points:
+      - 成交量高通常較好買賣
+      - 流動性低可能導致價格偏離淨值
+    example: 冷門 ETF 可能很久才成交一筆。
+    pitfalls:
+      - 只看成交量，不看淨值
+    related: [nav_vs_price]
+
+  - id: dividend_etf
+    tags: [ETF, 配息]
+    title: 配息型 ETF 是怎麼配息的？
+    level: beginner
+    summary: 配息型 ETF 會定期把收益分配給投資人，但配息不等於獲利。
+    key_points:
+      - 配息可能來自股利或資本利得
+      - 配息會讓淨值下降
+    example: 配息就像把錢從左口袋拿到右口袋。
+    pitfalls:
+      - 以為高配息一定比較好
+    related: [total_return]
+
+  - id: total_return
+    tags: [ETF, 總報酬]
+    title: 什麼是總報酬？為什麼不只看配息？
+    level: beginner
+    summary: 總報酬包含價格變化與配息，是評估投資成果的完整方式。
+    key_points:
+      - 價格上漲與配息都算報酬
+      - 只看配息可能忽略價格下跌
+    example: 價格跌 10%、配息 5%，總報酬仍是負的。
+    pitfalls:
+      - 只比較配息率
+    related: [dividend_etf]
+
+  - id: etf_risk
+    tags: [ETF, 風險]
+    title: ETF 也會賠錢嗎？風險從哪裡來？
+    level: beginner
+    summary: ETF 仍有市場風險，價格會隨市場波動而上下變動。
+    key_points:
+      - 市場下跌時 ETF 也會下跌
+      - 產業集中會增加波動
+    example: 大盤下跌時，大盤型 ETF 也會跟著跌。
+    pitfalls:
+      - 以為分散就沒有風險
+    related: [diversification]
+
+  - id: etf_myths
+    tags: [ETF, 迷思]
+    title: 新手常見的 ETF 迷思有哪些？
+    level: beginner
+    summary: 很多新手對 ETF 有過度樂觀或錯誤理解。
+    key_points:
+      - ETF 不等於保本
+      - 高配息不代表高報酬
+    example: 把 ETF 當成定存。
+    pitfalls:
+      - 忽略風險與波動
+    related: []
+
+  # ===== 台股 ETF 常識 =====
+
+  - id: etf_0050
+    tags: [0050, 台股, ETF]
+    title: 0050 是什麼？適合什麼樣的人？
+    level: beginner
+    summary: 0050 是追蹤台灣大型公司的 ETF，常被視為台股大盤代表。
+    key_points:
+      - 成分股集中在大型企業
+      - 波動仍然存在
+    example: 想參與台灣整體經濟成長。
+    pitfalls:
+      - 以為永遠只會上漲
+    related: [dca]
+
+  - id: etf_0056
+    tags: [0056, 台股, ETF]
+    title: 0056 是什麼？跟 0050 有什麼不同？
+    level: beginner
+    summary: 0056 是高股息型 ETF，與市值型 ETF 設計目的不同。
+    key_points:
+      - 著重配息而非成長
+      - 波動與風險仍存在
+    example: 重視現金流的投資人常關注。
+    pitfalls:
+      - 只看配息不看價格
+    related: [dividend_etf]
+
+  - id: market_cap_etf
+    tags: [台股, 市值型ETF]
+    title: 台股市值型 ETF 是什麼概念？
+    level: beginner
+    summary: 市值型 ETF 依公司市值大小配置權重。
+    key_points:
+      - 大公司占比較高
+      - 反映市場主流
+    example: 大公司影響 ETF 漲跌較大。
+    pitfalls:
+      - 忽略集中度風險
+    related: []
+
+  - id: high_dividend_etf
+    tags: [台股, 高股息ETF]
+    title: 高股息 ETF 在做什麼？有什麼限制？
+    level: beginner
+    summary: 高股息 ETF 以穩定配息為設計目標，但不保證報酬。
+    key_points:
+      - 配息來源有限
+      - 成長性可能較低
+    example: 像是偏向領息的配置。
+    pitfalls:
+      - 忽略總報酬
+    related: [total_return]
+
+  - id: industry_concentration
+    tags: [台股, ETF, 產業]
+    title: 為什麼台股 ETF 常集中在少數產業？
+    level: beginner
+    summary: 台灣市場本身產業結構集中，ETF 會反映這個現象。
+    key_points:
+      - 科技業占比高
+      - 產業循環影響大
+    example: 科技股波動影響 ETF 表現。
+    pitfalls:
+      - 誤以為已充分分散
+    related: []
+
+  - id: constituent_adjustment
+    tags: [ETF, 成分股]
+    title: 成分股調整是什麼？會影響 ETF 嗎？
+    level: beginner
+    summary: ETF 會定期調整成分股以符合指數規則。
+    key_points:
+      - 調整是正常機制
+      - 短期可能影響價格
+    example: 成分股變動後 ETF 內容更新。
+    pitfalls:
+      - 過度關注短期調整
+    related: []
+
+  - id: nav_vs_price
+    tags: [ETF, 淨值]
+    title: ETF 淨值是什麼？跟市價有什麼差別？
+    level: beginner
+    summary: 淨值是 ETF 持有資產的實際價值，市價是市場交易價格。
+    key_points:
+      - 淨值反映資產價值
+      - 市價會隨供需波動
+    example: 市價可能高於或低於淨值。
+    pitfalls:
+      - 忽略折溢價
+    related: [premium_discount]
+
+  - id: premium_discount
+    tags: [ETF, 折溢價]
+    title: 折溢價是什麼？為什麼會出現？
+    level: beginner
+    summary: 折溢價是市價與淨值之間的差距。
+    key_points:
+      - 流動性不足容易產生
+      - 短期可能放大波動
+    example: 市價高於淨值稱為溢價。
+    pitfalls:
+      - 長期忽略折溢價
+    related: [nav_vs_price]
+
+  - id: etf_financials
+    tags: [台股, ETF, 財報]
+    title: 台股 ETF 需要看財報嗎？
+    level: beginner
+    summary: 一般投資 ETF 不需逐一看財報，但了解大方向有幫助。
+    key_points:
+      - ETF 重點在整體結構
+      - 財報對單一股票影響較大
+    example: ETF 更像看整體成分。
+    pitfalls:
+      - 用選股思維看 ETF
+    related: []
+
+  - id: tw_etf_risk
+    tags: [台股, ETF, 風險]
+    title: 台股 ETF 的風險有哪些？
+    level: beginner
+    summary: 台股 ETF 仍受市場、產業與政策影響。
+    key_points:
+      - 市場波動
+      - 產業集中
+    example: 市場下跌時 ETF 也會回檔。
+    pitfalls:
+      - 忽略整體市場風險
+    related: []
+
+  # ===== 投資方式與觀念 =====
+
+  - id: dca
+    tags: [定期定額, 投資方式]
+    title: 什麼是定期定額？適合什麼情況？
+    level: beginner
+    summary: 定期定額是固定時間投入固定金額，分散進場時點。
+    key_points:
+      - 分散買入價格
+      - 需要長期與紀律
+    example: 每月固定投入 3000 元。
+    pitfalls:
+      - 以為一定賺錢
+    related: []
+
+  - id: lump_sum_vs_dca
+    tags: [投資方式]
+    title: 一次買進跟定期定額差在哪？
+    level: beginner
+    summary: 一次買進承擔時點風險，定期定額分散風險。
+    key_points:
+      - 一次買進波動大
+      - 定期定額較平滑
+    example: 全部一次買 vs 每月慢慢買。
+    pitfalls:
+      - 忽略心理壓力
+    related: []
+
+  - id: diversification
+    tags: [分散投資, 風險]
+    title: 分散投資是什麼？為什麼重要？
+    level: beginner
+    summary: 分散投資是避免把所有資金押在單一標的。
+    key_points:
+      - 降低單一風險
+      - 不能消除所有風險
+    example: 不只投一種 ETF。
+    pitfalls:
+      - 過度分散
+    related: []
+
+  - id: long_term
+    tags: [長期投資]
+    title: 長期投資的「長期」大概是多久？
+    level: beginner
+    summary: 長期通常指多年，讓市場波動有時間消化。
+    key_points:
+      - 不是幾個月
+      - 需要耐心
+    example: 5～10 年以上。
+    pitfalls:
+      - 中途放棄
+    related: []
+
+  - id: volatility
+    tags: [市場波動]
+    title: 市場波動是什麼？為什麼一定會發生？
+    level: beginner
+    summary: 市場價格上下變動是正常現象。
+    key_points:
+      - 受消息與情緒影響
+      - 無法完全避免
+    example: 短期大漲大跌。
+    pitfalls:
+      - 將波動視為錯誤
+    related: []
+
+  - id: pullback
+    tags: [回檔, 下跌]
+    title: 回檔是什麼？跟下跌有什麼不同？
+    level: beginner
+    summary: 回檔是短期修正，不等於長期趨勢改變。
+    key_points:
+      - 回檔幅度通常有限
+      - 需搭配長期觀察
+    example: 上漲後短暫下跌。
+    pitfalls:
+      - 過度恐慌
+    related: []
+
+  - id: short_term_performance
+    tags: [績效, 風險]
+    title: 為什麼不能只看短期績效？
+    level: beginner
+    summary: 短期績效容易受運氣與情緒影響。
+    key_points:
+      - 不代表長期表現
+      - 容易誤判風險
+    example: 一年好不代表年年好。
+    pitfalls:
+      - 追高殺低
+    related: []
+
+  - id: risk_tolerance
+    tags: [風險承受度]
+    title: 風險承受度是什麼？要怎麼理解？
+    level: beginner
+    summary: 風險承受度是面對虧損時的心理與財務能力。
+    key_points:
+      - 每個人不同
+      - 影響投資方式
+    example: 能否承受短期下跌。
+    pitfalls:
+      - 高估自己
+    related: []
+
+  - id: investing_vs_saving
+    tags: [投資, 存錢]
+    title: 投資跟存錢有什麼不一樣？
+    level: beginner
+    summary: 存錢重安全，投資追求成長但有風險。
+    key_points:
+      - 投資有波動
+      - 存錢較穩定
+    example: 定存 vs ETF。
+    pitfalls:
+      - 把投資當存錢
+    related: []
+
+  - id: before_start
+    tags: [新手, 投資準備]
+    title: 新手開始投資前，最該先想清楚的三件事
+    level: beginner
+    summary: 在投資前，先確認目標、風險與時間。
+    key_points:
+      - 為什麼投資
+      - 能承受多少風險
+      - 願意投多久
+    example: 想清楚用途再開始。
+    pitfalls:
+      - 跟風開始
+    related: []
