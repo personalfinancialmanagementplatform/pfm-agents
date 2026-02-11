@@ -1,0 +1,73 @@
+{
+  "categories": {
+    "food": {
+      "name": "飲食",
+      "icon": "🍽️",
+      "sub_categories": {
+        "breakfast": "早餐",
+        "lunch": "午餐",
+        "dinner": "晚餐",
+        "drinks": "飲料",
+        "snacks": "點心"
+      }
+    },
+    "transport": {
+      "name": "交通",
+      "icon": "🚗",
+      "sub_categories": {
+        "public": "大眾運輸",
+        "taxi": "計程車",
+        "parking": "停車",
+        "fuel": "加油"
+      }
+    },
+    "entertainment": {
+      "name": "娛樂",
+      "icon": "🎬",
+      "sub_categories": {
+        "movies": "電影",
+        "games": "遊戲",
+        "sports": "運動",
+        "travel": "旅遊"
+      }
+    },
+    "shopping": {
+      "name": "購物",
+      "icon": "🛒",
+      "sub_categories": {
+        "clothes": "服飾",
+        "electronics": "3C",
+        "daily": "日用品",
+        "gifts": "禮物"
+      }
+    },
+    "medical": {
+      "name": "醫療",
+      "icon": "🏥",
+      "sub_categories": {
+        "hospital": "看診",
+        "medicine": "藥品",
+        "insurance": "保險"
+      }
+    },
+    "fixed": {
+      "name": "固定支出",
+      "icon": "📋",
+      "sub_categories": {
+        "rent": "房租",
+        "utilities": "水電瓦斯",
+        "subscription": "訂閱服務"
+      }
+    },
+    "income": {
+      "name": "收入",
+      "icon": "💰",
+      "sub_categories": {
+        "salary": "薪水",
+        "bonus": "獎金",
+        "investment": "投資收益",
+        "other": "其他收入"
+      }
+    }
+  }
+}

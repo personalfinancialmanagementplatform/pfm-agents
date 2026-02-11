@@ -1,0 +1,62 @@
+{
+  "convenience_stores": [
+    {
+      "name": "7-ELEVEN",
+      "aliases": ["7-11", "小七", "統一超商"],
+      "default_category": "shopping",
+      "category_hints": {
+        "咖啡": "food",
+        "便當": "food",
+        "飲料": "food"
+      }
+    },
+    {
+      "name": "全家便利商店",
+      "aliases": ["全家", "FamilyMart"],
+      "default_category": "shopping",
+      "category_hints": {
+        "咖啡": "food",
+        "便當": "food"
+      }
+    },
+    {
+      "name": "萊爾富",
+      "aliases": ["Hi-Life"],
+      "default_category": "shopping"
+    }
+  ],
+  "restaurants": [
+    {
+      "name": "麥當勞",
+      "aliases": ["McDonald's", "麥當當"],
+      "default_category": "food"
+    },
+    {
+      "name": "星巴克",
+      "aliases": ["Starbucks"],
+      "default_category": "food"
+    },
+    {
+      "name": "鼎泰豐",
+      "aliases": [],
+      "default_category": "food"
+    }
+  ],
+  "transport": [
+    {
+      "name": "台北捷運",
+      "aliases": ["捷運", "MRT"],
+      "default_category": "transport"
+    },
+    {
+      "name": "Uber",
+      "aliases": ["優步"],
+      "default_category": "transport"
+    },
+    {
+      "name": "台灣高鐵",
+      "aliases": ["高鐵", "THSR"],
+      "default_category": "transport"
+    }
+  ]
+}
