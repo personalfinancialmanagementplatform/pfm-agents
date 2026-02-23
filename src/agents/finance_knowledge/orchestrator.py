@@ -52,7 +52,7 @@ def unified_orchestrator(state: FinanceState) -> FinanceState:
     - 輸出：intent / tone / (need_knowledge, need_news)
     - 防呆：JSON parse 失敗或欄位不完整 -> fallback
     """
-    raw = (state.get("raw_input") or "").strip()
+    raw = (state.get("raw_text") or "").strip()
     user_level = (state.get("user_level") or "beginner").strip()
     prefs = state.get("user_preference") or []
 

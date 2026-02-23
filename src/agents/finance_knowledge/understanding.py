@@ -11,7 +11,7 @@ def _default_understanding(state: FinanceState) -> Dict[str, Any]:
     """
     fallback：保守抽取（至少不讓 concepts 變成空/None）
     """
-    text = (state.get("raw_input") or "").strip()
+    text = (state.get("raw_text") or "").strip()
     concepts: List[str] = []
     if "ETF" in text.upper():
         concepts.append("ETF")
@@ -49,7 +49,7 @@ def understanding_node(state: FinanceState) -> FinanceState:
     - 判斷 need_news（是否需要查近期新聞/事件）
     - 防呆：JSON parse 失敗 -> fallback
     """
-    raw = (state.get("raw_input") or "").strip()
+    raw = (state.get("raw_text") or "").strip()
 
     dbg = state.get("debug") or {}
     dbg.setdefault("understanding", {})

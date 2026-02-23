@@ -6,7 +6,7 @@ class FinanceState(TypedDict, total=False):
     user_id: str
     user_level: str              # beginner / normal
     user_preference: List[str]   # ["ETF", "台股"]
-    raw_input: str
+    raw_text: str
 
     # Orchestrator / Understanding
     intent: str                  # knowledge / news / mixed

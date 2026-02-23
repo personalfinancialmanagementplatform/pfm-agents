@@ -55,15 +55,17 @@ def main():
 
     upsert = text("""
     INSERT INTO kb_entries (id, title, level, tags, related, payload, doc, embedding)
-    VALUES (:id, :title, :level, :tags::jsonb, :related::jsonb, :payload::jsonb, :doc, :embedding)
+    VALUES (:id, :title, :level,
+            (:tags)::jsonb, (:related)::jsonb, (:payload)::jsonb,
+            :doc, :embedding)
     ON CONFLICT (id) DO UPDATE SET
-      title = EXCLUDED.title,
-      level = EXCLUDED.level,
-      tags = EXCLUDED.tags,
-      related = EXCLUDED.related,
-      payload = EXCLUDED.payload,
-      doc = EXCLUDED.doc,
-      embedding = EXCLUDED.embedding
+    title = EXCLUDED.title,
+    level = EXCLUDED.level,
+    tags = EXCLUDED.tags,
+    related = EXCLUDED.related,
+    payload = EXCLUDED.payload,
+    doc = EXCLUDED.doc,
+    embedding = EXCLUDED.embedding
     """)
 
     with engine.begin() as conn:

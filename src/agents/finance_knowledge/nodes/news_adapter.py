@@ -14,7 +14,7 @@ def finance_to_news_adapter(state: FinanceState) -> FinanceState:
 
     news_state_in: Dict[str, Any] = {
         "user_id": state.get("user_id", "unknown"),
-        "raw_text": state.get("raw_input", ""),
+        "raw_text": state.get("raw_text", ""),
         "trigger": "qa",  # finance query 預設走 QA；若你要推播再改成 digest/refresh
         "debug": {
             "from_finance": {
