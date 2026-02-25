@@ -11,3 +11,55 @@ logs/
 .pytest_cache/
 models/
 models/
+
+# 環境變數（包含敏感資訊）
+.env
+.env.local
+.env.remote
+.env.*.local
+
+# 備份檔案
+*.bak
+backup.sql
+
+# 環境變數檔案（包含敏感資訊）
+.env
+.env.local
+.env.remote
+.env.*.local
+
+# 備份檔案
+*.sql
+*.sql.gz
+backup*.sql
+backups/
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+venv/
+ENV/
+env/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+
+# 模型檔案（太大）
+models/
+*.bin
+*.safetensors
+
+# 日誌
+*.log
+logs/
+
