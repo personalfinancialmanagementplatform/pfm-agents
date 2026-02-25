@@ -1,0 +1,16 @@
+version: "2"
+authtoken: 3AA7oCgd22p7xCU4eO2gLkcfK87_3SJh3HwXnsEmPhUGQNDqi
+
+
+tunnels:
+  postgres:
+    proto: tcp
+    addr: 5432
+  
+  mongodb:
+    proto: tcp
+    addr: 27017
+  
+  redis:
+    proto: tcp
+    addr: 6379
