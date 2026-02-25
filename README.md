@@ -234,3 +234,21 @@ mcp_tools:
 - **Tool Protocol**: Anthropic MCP
 - **Backend**: FastAPI
 - **Database**: PostgreSQL + MongoDB + Redis
+
+
+## 🐳 Docker 環境設定
+
+詳見 [DOCKER_GUIDE.md](DOCKER_GUIDE.md)
+
+### 快速啟動
+```bash
+# 啟動資料庫
+docker-compose up -d
+
+# 測試連線
+python3 scripts/test_connection.py
+```
+
+## 📚 文件
+- [Docker 使用指南](DOCKER_GUIDE.md)
+- [遠端連線設定](REMOTE_SETUP.md)
