@@ -1,27 +1,3 @@
-__pycache__/
-*.py[cod]
-venv/
-.env
-.vscode/
-.idea/
-*.db
-.DS_Store
-logs/
-*.log
-.pytest_cache/
-models/
-models/
-
-# 環境變數（包含敏感資訊）
-.env
-.env.local
-.env.remote
-.env.*.local
-
-# 備份檔案
-*.bak
-backup.sql
-
 # 環境變數檔案（包含敏感資訊）
 .env
 .env.local
@@ -62,4 +38,3 @@ models/
 # 日誌
 *.log
 logs/
-
