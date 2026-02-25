@@ -37,9 +37,9 @@ cp .env.example .env
 
 - 如果在**其他電腦**：
 ```env
-  DB_HOST=172.20.10.4  # Emily 的 IP
-  MONGO_HOST=172.20.10.4
-  REDIS_HOST=172.20.10.4
+  DB_HOST=10.234.166.5  # Emily 的 IP
+  MONGO_HOST=10.234.166.5
+  REDIS_HOST=10.234.166.5
 ```
 
 #### 5. 啟動資料庫
@@ -106,7 +106,7 @@ docker-compose up -d
 
 **如果是其他電腦：**
 1. 確認主機（Emily）的 Docker 容器在運行
-2. 確認 `.env` 的 IP 設定正確（`172.20.10.4`）
+2. 確認 `.env` 的 IP 設定正確（`10.234.166.5`）
 3. 確認在同一個 Wi-Fi 網路
 
 ### Q2: IP 變了怎麼辦？

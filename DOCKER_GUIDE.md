@@ -16,7 +16,7 @@
 
 ### 主機配置
 ```
-📍 IP: 172.20.10.4 (可能會變動)
+📍 IP: 10.234.166.5 (可能會變動)
 🐳 Docker Desktop: 必須保持運行
 ```
 
@@ -349,9 +349,9 @@ REDIS_HOST=localhost
 
 ### 遠端配置 (.env.remote)
 ```env
-DB_HOST=172.20.10.4
-MONGO_HOST=172.20.10.4
-REDIS_HOST=172.20.10.4
+DB_HOST=10.234.166.5
+MONGO_HOST=10.234.166.5
+REDIS_HOST=10.234.166.5
 ```
 
 ### 其他電腦設定步驟
@@ -375,7 +375,7 @@ pip install -r requirements.txt
 cp .env.remote .env
 
 # 方法 2: 手動建立 .env
-# 將所有 HOST 改為主機 IP (172.20.10.4)
+# 將所有 HOST 改為主機 IP (10.234.166.5)
 ```
 
 4. **測試連線**
@@ -485,12 +485,12 @@ docker ps
 3. **測試網路連通性**
 ```bash
 # 從其他電腦執行
-ping 172.20.10.4
+ping 10.234.166.5
 
 # 測試端口
-nc -zv 172.20.10.4 5432
-nc -zv 172.20.10.4 27017
-nc -zv 172.20.10.4 6379
+nc -zv 10.234.166.5 5432
+nc -zv 10.234.166.5 27017
+nc -zv 10.234.166.5 6379
 ```
 
 4. **檢查防火牆**
@@ -751,6 +751,6 @@ docker volume inspect pfm-agents_redis_data
 ## 更新記錄
 
 - 2026-02-25: 初始版本建立
-- IP: 172.20.10.4 (可能變動)
+- IP: 10.234.166.5 (可能變動)
 - PostgreSQL 18.1, MongoDB 7.0.30, Redis 7.4.8
 
