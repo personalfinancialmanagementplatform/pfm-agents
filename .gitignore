@@ -1,8 +1,10 @@
 # 環境變數檔案（包含敏感資訊）
 .env
 .env.local
-.env.remote
-.env.*.local
+
+# 但允許 .env.remote 和 .env.example
+!.env.remote
+!.env.example
 
 # 備份檔案
 *.sql
@@ -38,3 +40,6 @@ models/
 # 日誌
 *.log
 logs/
+
+# Ngrok 配置（包含私密 token）
+ngrok.yml
