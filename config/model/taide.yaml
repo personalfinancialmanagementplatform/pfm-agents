@@ -1,0 +1,234 @@
+# ==============================================
+# TAIDE-LX-7B 模型配置
+# 個人理財管理平台 (PFM) - Agent 系統
+# ==============================================
+
+# 模型基本資訊
+model:
+  name: "taide/TAIDE-LX-7B"
+  source: "huggingface"
+  type: "causal_lm"
+  local_dir: "./models/TAIDE-LX-7B"  # 本地下載路徑
+
+# 模型載入設定
+load:
+  device_map: "auto"              # auto | cuda:0 | cpu
+  torch_dtype: "float16"          # float16 | bfloat16 | float32
+  low_cpu_mem_usage: true
+  trust_remote_code: true
+  attn_implementation: "sdpa"     # sdpa | flash_attention_2 | eager
+
+# 量化設定（降低記憶體需求）
+quantization:
+  enabled: false                  # 是否啟用量化
+  method: "bitsandbytes"          # bitsandbytes | gptq | awq
+  bits: 4                         # 4 | 8
+  bnb_config:                     # bitsandbytes 專用配置
+    load_in_4bit: true
+    bnb_4bit_quant_type: "nf4"
+    bnb_4bit_compute_dtype: "float16"
+    bnb_4bit_use_double_quant: true
+
+# 預設推論參數
+inference:
+  max_new_tokens: 512
+  temperature: 0.7
+  top_p: 0.9
+  top_k: 50
+  do_sample: true
+  repetition_penalty: 1.1
+  pad_token_id: 0
+  eos_token_id: 2
+
+# 快取設定
+cache:
+  enabled: true
+  max_size: 100                   # 最多快取請求數
+  ttl: 3600                       # 快取存活時間（秒）
+
+# ==============================================
+# 各 Agent 任務專用參數
+# ==============================================
+
+task_configs:
+  # ----------------------------------------
+  # 交易解析 Agent - 需要精確輸出
+  # ----------------------------------------
+  parse_transaction:
+    temperature: 0.1
+    max_new_tokens: 256
+    do_sample: false
+    repetition_penalty: 1.0
+    system_prompt: |
+      你是一個交易解析助手。請將用戶的自然語言輸入轉換為結構化的交易資料。
+      輸出格式必須是 JSON，包含以下欄位：
+      - amount: 金額（數字）
+      - type: 類型（income/expense）
+      - description: 描述
+      - merchant: 商家名稱（如有）
+      - date: 日期（如有提及，格式 YYYY-MM-DD）
+      
+      如果某欄位無法從輸入中判斷，請設為 null。
+
+  # ----------------------------------------
+  # 類別分類 Agent - 需要一致性
+  # ----------------------------------------
+  classify_category:
+    temperature: 0.1
+    max_new_tokens: 64
+    do_sample: false
+    repetition_penalty: 1.0
+    categories:
+      - id: "food"
+        name: "飲食"
+        keywords: ["早餐", "午餐", "晚餐", "宵夜", "飲料", "咖啡", "便當", "餐廳"]
+      - id: "transport"
+        name: "交通"
+        keywords: ["捷運", "公車", "計程車", "Uber", "高鐵", "台鐵", "加油", "停車"]
+      - id: "entertainment"
+        name: "娛樂"
+        keywords: ["電影", "遊戲", "KTV", "演唱會", "Netflix", "Spotify"]
+      - id: "shopping"
+        name: "購物"
+        keywords: ["衣服", "鞋子", "3C", "電子產品", "生活用品"]
+      - id: "medical"
+        name: "醫療"
+        keywords: ["看診", "藥局", "醫院", "診所", "保健"]
+      - id: "fixed"
+        name: "固定支出"
+        keywords: ["房租", "水電", "網路", "手機費", "保險", "學費"]
+      - id: "other"
+        name: "其他"
+        keywords: []
+    system_prompt: |
+      你是一個消費分類助手。請根據交易描述判斷最適合的類別。
+      只回覆類別 ID，不要有其他文字。
+      可用類別：food, transport, entertainment, shopping, medical, fixed, other
+
+  # ----------------------------------------
+  # 商家識別 Agent
+  # ----------------------------------------
+  recognize_merchant:
+    temperature: 0.2
+    max_new_tokens: 64
+    do_sample: false
+    system_prompt: |
+      你是一個商家識別助手。請從交易描述中提取商家名稱。
+      如果無法識別商家，回覆 "unknown"。
+      只回覆商家名稱，不要有其他文字。
+
+  # ----------------------------------------
+  # 異常偵測 Agent
+  # ----------------------------------------
+  detect_anomaly:
+    temperature: 0.3
+    max_new_tokens: 256
+    do_sample: false
+    thresholds:
+      single_transaction_max: 10000    # 單筆交易警戒金額
+      daily_spending_max: 5000         # 每日消費警戒金額
+      category_deviation_std: 2.0      # 類別消費偏離標準差
+    system_prompt: |
+      你是一個消費異常偵測助手。請分析這筆交易是否異常。
+      考慮因素：金額是否過高、是否與歷史消費模式不符、時間是否異常。
+      回覆格式：
+      - is_anomaly: true/false
+      - reason: 原因說明（如有異常）
+      - severity: low/medium/high（如有異常）
+
+  # ----------------------------------------
+  # 預算監控 Agent
+  # ----------------------------------------
+  monitor_budget:
+    temperature: 0.5
+    max_new_tokens: 256
+    do_sample: true
+    system_prompt: |
+      你是一個預算監控助手。請根據用戶的預算設定和目前消費狀況，
+      提供友善的提醒和建議。使用繁體中文，語氣要親切但不說教。
+
+  # ----------------------------------------
+  # 消費模式分析 Agent
+  # ----------------------------------------
+  analyze_pattern:
+    temperature: 0.6
+    max_new_tokens: 512
+    do_sample: true
+    system_prompt: |
+      你是一個消費分析助手。請分析用戶的消費模式，找出：
+      1. 主要消費類別
+      2. 消費時間規律
+      3. 可能的省錢機會
+      使用繁體中文，提供具體且可行的建議。
+
+  # ----------------------------------------
+  # 摘要生成 Agent - 可以有創意
+  # ----------------------------------------
+  generate_summary:
+    temperature: 0.7
+    max_new_tokens: 512
+    do_sample: true
+    repetition_penalty: 1.1
+    system_prompt: |
+      你是一個理財摘要助手。請用輕鬆友善的語氣，為用戶總結消費狀況。
+      使用繁體中文，可以適當使用 emoji 讓內容更生動。
+      重點包含：總支出、主要消費類別、與上期比較、簡短建議。
+
+  # ----------------------------------------
+  # 意圖識別 Agent
+  # ----------------------------------------
+  recognize_intent:
+    temperature: 0.2
+    max_new_tokens: 64
+    do_sample: false
+    intents:
+      - id: "record"
+        description: "記錄新的收入或支出"
+        examples: ["午餐吃了80", "買書花了350", "領到薪水25000"]
+      - id: "query"
+        description: "查詢交易記錄"
+        examples: ["這個月花了多少", "上週的消費", "我的飲食支出"]
+      - id: "analyze"
+        description: "分析消費模式"
+        examples: ["分析我的消費", "我哪裡花最多", "消費趨勢"]
+      - id: "budget"
+        description: "設定或查詢預算"
+        examples: ["設定預算", "這個月預算還剩多少", "調整飲食預算"]
+      - id: "summary"
+        description: "生成消費摘要"
+        examples: ["這個月總結", "給我報告", "消費總覽"]
+      - id: "chat"
+        description: "一般對話"
+        examples: ["你好", "謝謝", "幫幫我"]
+    system_prompt: |
+      你是一個意圖識別助手。請判斷用戶輸入的意圖類別。
+      只回覆意圖 ID，不要有其他文字。
+      可用意圖：record, query, analyze, budget, summary, chat
+
+# ==============================================
+# 硬體需求估計
+# ==============================================
+hardware_requirements:
+  # 完整精度 (float16)
+  full_precision:
+    vram_gb: 14
+    ram_gb: 16
+    recommended_gpu: "RTX 3090 / RTX 4080 / A100"
+  
+  # 8-bit 量化
+  int8:
+    vram_gb: 8
+    ram_gb: 12
+    recommended_gpu: "RTX 3070 / RTX 4070"
+  
+  # 4-bit 量化
+  int4:
+    vram_gb: 5
+    ram_gb: 10
+    recommended_gpu: "RTX 3060 / RTX 4060"
+  
+  # CPU 推論（很慢，僅供測試）
+  cpu_only:
+    vram_gb: 0
+    ram_gb: 20
+    note: "推論速度極慢，僅建議用於測試"
