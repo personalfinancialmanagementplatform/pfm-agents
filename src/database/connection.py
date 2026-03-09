@@ -11,13 +11,13 @@ from dotenv import load_dotenv
 # 載入 .env
 load_dotenv()
 
-# 資料庫設定
+# 資料庫設定！
 DB_CONFIG = {
     "host": os.getenv("DB_HOST", "localhost"),
     "port": os.getenv("DB_PORT", "5432"),
     "database": os.getenv("DB_NAME", "pfm_agents"),
-    "user": os.getenv("DB_USER", "emily200008"),
-    "password": os.getenv("DB_PASSWORD", "108306052J"),
+    "user": os.getenv("DB_USER"),
+    "password": os.getenv("DB_PASSWORD"),
 }
 
 

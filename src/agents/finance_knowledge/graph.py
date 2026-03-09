@@ -9,6 +9,7 @@ from .understanding import understanding_node
 from .coordinator import domain_coordinator
 from .knowledge_executor import knowledge_executor
 from .presentation import presentation_node
+from .rag_retriever import rag_retriever
 
 from .nodes.news_adapter import (
     finance_to_news_adapter,
@@ -42,6 +43,9 @@ def build_finance_graph():
     g.add_node("understanding", understanding_node)
     g.add_node("coordinator", domain_coordinator)
 
+    # ---- RAG retrieval ----
+    g.add_node("rag_retriever", rag_retriever)
+
     # ---- Knowledge domain ----
     g.add_node("knowledge_domain", knowledge_executor)
 
@@ -65,12 +69,15 @@ def build_finance_graph():
         "coordinator",
         _route_after_coordinator,
         {
-            "knowledge_only": "knowledge_domain",
+            "knowledge_only": "rag_retriever",
             "news_only": "news_adapter_in",
-            "both": "knowledge_domain",
+            "both": "rag_retriever",
             "presentation": "presentation",
         },
     )
+
+    # ---- RAG -> Knowledge ----
+    g.add_edge("rag_retriever", "knowledge_domain")
 
     # ---- After Knowledge: mixed -> news, else -> presentation ----
     g.add_conditional_edges(

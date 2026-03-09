@@ -5,26 +5,46 @@ from typing import Any, Dict, List, Optional
 from fastapi import FastAPI
 from pydantic import BaseModel
 from sqlalchemy import create_engine, text
-from sentence_transformers import SentenceTransformer
+from sentence_transformers import SentenceTransformer  
 
-DB_URL = os.getenv("DB_URL")
-engine = create_engine(DB_URL, pool_pre_ping=True)
-model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2")
+DB_URL = os.getenv("DB_URL")     # 從環境變數讀取資料庫網址
+if not DB_URL:
+    raise ValueError("DB_URL is not set") 
+
+
+engine = create_engine(DB_URL, pool_pre_ping=True)  # 建立SQLAlchemy資料庫連線引擎，連線前先Ｐing一下
+model = SentenceTransformer("sentence-transformers/all-MiniLM-L6-v2") # 載入embeddibngmodel ，程式啟動時就載入模型並非每次呼叫api才仔入
 
 app = FastAPI(title="KB RAG API")
-
-class SearchReq(BaseModel):
+ 
+# request schema 
+class SearchReq(BaseModel):      
     query: str
     top_k: int = 5
-    level: Optional[str] = "beginner"
+    level: Optional[str] = None
     include_related: bool = True
 
-def embed_query(q: str) -> List[float]:
+def embed_query(q: str) -> List[float]:        #embedding函式
     v = model.encode([q], normalize_embeddings=True)[0]
     return v.astype(np.float32).tolist()
 
+#def extract_codes(q: str) -> List[str]:   #代碼抽取
+#    return re.findall(r"\b0\d{3}\b", q)   #正規表達式
+
+#	1.	先用 regex 抓疑似代碼
+#	2.	再跟 KB tags / symbol 欄位交叉比對
+#	3.	只把真的存在於知識庫的代碼當成代碼
+
 def extract_codes(q: str) -> List[str]:
-    return re.findall(r"\b0\d{3}\b", q)
+    # 抓 4~6 位純數字，去重但保留順序
+    matches = re.findall(r"\b\d{4,6}\b", q)
+    seen = set()
+    codes = []
+    for m in matches:
+        if m not in seen:
+            seen.add(m)
+            codes.append(m)
+    return codes
 
 @app.post("/kb/search")
 def kb_search(req: SearchReq) -> Dict[str, Any]:

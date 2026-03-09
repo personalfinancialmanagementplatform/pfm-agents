@@ -2,33 +2,64 @@ from typing import TypedDict, List, Optional, Dict, Any
 
 
 class FinanceState(TypedDict, total=False):
-    # Input
+
+    # =========================
+    # User Input
+    # =========================
     user_id: str
-    user_level: str              # beginner / normal
-    user_preference: List[str]   # ["ETF", "台股"]
     raw_input: str
 
-    # Orchestrator / Understanding
-    intent: str                  # knowledge / news / mixed
-    tone: str                    # simple / normal
-    concepts: List[str]          # ["ETF", "升息"]
+    user_level: str               # beginner / normal
+    user_preference: List[str]    # ["ETF", "台股"]
+
+    # =========================
+    # Understanding Layer
+    # =========================
+    intent: str                   # knowledge / news / mixed
+    tone: str                     # simple / normal
+
+    concepts: List[str]           # extracted finance concepts
     need_news: bool
 
-    # Coordinator decisions
+    question_type: Optional[str]  # definition / comparison / market_reasoning / risk / general
+
+    # query used for RAG retrieval
+    retrieval_query: Optional[str]
+
+    # =========================
+    # Coordinator Decisions
+    # =========================
     run_knowledge: bool
     run_news: bool
 
-    # Execution outputs
-    knowledge_content: Optional[str]
-    news_content: Optional[str]
+    # =========================
+    # RAG Retrieval
+    # =========================
+    rag_results: Optional[List[Dict[str, Any]]]
 
-    # Adapter I/O for news subgraph
+    # simplified documents passed to executor
+    retrieved_docs: Optional[List[Dict[str, Any]]]
+
+    # =========================
+    # Knowledge Execution
+    # =========================
+    knowledge_content: Optional[str]
+
+    # =========================
+    # News Domain
+    # =========================
     news_state_in: Optional[Dict[str, Any]]
     news_state_out: Optional[Dict[str, Any]]
 
-    # Presentation
+    news_content: Optional[str]
+
+    # =========================
+    # Final Response
+    # =========================
     final_response: Optional[str]
 
-    # Error / Debug
-    error: Optional[str]
+    # =========================
+    # Debug / Error
+    # =========================
     debug: Optional[Dict[str, Any]]
+    error: Optional[str]
