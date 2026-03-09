@@ -70,7 +70,7 @@ class BookkeepingState(TypedDict, total=False):
 
 def should_continue_after_parser(state: BookkeepingState) -> str:
     """Parser 後判斷：有錯誤就跳到 summary，否則繼續"""
-    if state.get("error"):
+    if get("error"):
         return "summary"
     return "classifier"
 

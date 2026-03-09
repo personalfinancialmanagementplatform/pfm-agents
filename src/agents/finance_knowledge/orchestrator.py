@@ -1,4 +1,3 @@
-# src/agents/finance/orchestrator.py
 from __future__ import annotations
 from typing import Any, Dict, List, Literal, Tuple
 import json
@@ -12,17 +11,18 @@ Tone = Literal["simple", "normal"]
 
 def _default_router(state: FinanceState) -> Dict[str, Any]:
     """
-    極保守 fallback：不中斷流程，避免整個 graph 掛掉。
+    極保守 fallback：
+    預設走金融知識，不主動開新聞。
     """
     user_level = (state.get("user_level") or "beginner").strip()
     tone: Tone = "simple" if user_level == "beginner" else "normal"
 
     return {
-        "intent": "mixed",
+        "intent": "knowledge",
         "need_knowledge": True,
-        "need_news": True,
+        "need_news": False,
         "tone": tone,
-        "reason": ["fallback_default"],
+        "reason": ["fallback_default_knowledge_first"],
     }
 
 
@@ -49,38 +49,38 @@ def unified_orchestrator(state: FinanceState) -> FinanceState:
     """
     F0: Unified Orchestrator（LLM Router）
     - 不做內容回答，只做 routing decision
-    - 輸出：intent / tone / (need_knowledge, need_news)
-    - 防呆：JSON parse 失敗或欄位不完整 -> fallback
+    - 輸出：intent / tone / need_news
+    - 新策略：金融知識優先，只有明確要求新聞時才開 news
     """
     raw = (state.get("raw_input") or "").strip()
     user_level = (state.get("user_level") or "beginner").strip()
     prefs = state.get("user_preference") or []
 
-    # 初始化 debug
     dbg = state.get("debug") or {}
     dbg.setdefault("orchestrator", {})
 
-    # 空輸入：直接 fallback
     if not raw:
         fb = _default_router(state)
         state["intent"] = fb["intent"]
         state["tone"] = fb["tone"]
-        # 給 coordinator 用（你 finance graph 會用 intent 產 run flags）
+        state["need_news"] = fb["need_news"]
         dbg["orchestrator"] = {"mode": "fallback", "reason": ["empty_input"]}
         state["debug"] = dbg
         return state
 
     model = get_taide_model()
-
-    # 你可以把這個 task_name 加進 TAIDE 的 task_configs（建議）
     task_name = "finance_router"
 
     prompt = (
-        "你是多代理系統的路由器（Router），只負責輸出 JSON，不要解釋。\n"
+        "你是金融多代理系統的路由器（Router），只負責輸出 JSON，不要解釋。\n"
         "請根據使用者輸入判斷要走哪種路徑：\n"
-        "- knowledge：偏概念解釋/名詞/機制\n"
-        "- news：偏近期事件/最新消息/新聞摘要\n"
-        "- mixed：兩者都需要（先解釋概念再串新聞，或先新聞再概念）\n\n"
+        "- knowledge：偏金融概念解釋、名詞說明、機制分析、投資教學\n"
+        "- news：使用者明確要求新聞、最新消息、近期事件整理、新聞摘要\n"
+        "- mixed：同時明確需要概念解釋與新聞事件\n\n"
+        "重要規則：\n"
+        "- 預設優先判為 knowledge\n"
+        "- 只有在使用者明確提到『新聞、最新消息、近期事件、最近新聞、新聞摘要、有沒有某某新聞』時，才可判為 news 或 mixed\n"
+        "- 若只是問『前景如何、股市如何、會不會影響』，優先判為 knowledge，不要因為可能涉及時事就直接開新聞\n\n"
         "請輸出 JSON（只能輸出 JSON，不能有多餘文字）：\n"
         "{\n"
         '  "intent": "knowledge" | "news" | "mixed",\n'
@@ -102,11 +102,9 @@ def unified_orchestrator(state: FinanceState) -> FinanceState:
         if not ok:
             raise ValueError("invalid_router_json:" + ",".join(errs))
 
-        # 填回 state（注意：FinanceState 原本沒有 need_knowledge 欄位，但不影響存放；
-        # coordinator 仍以 intent 產生 run_knowledge/run_news）
         state["intent"] = parsed["intent"]
         state["tone"] = parsed["tone"]
-        state["need_news"] = bool(parsed["need_news"])  # 你 FinanceState 有 need_news
+        state["need_news"] = bool(parsed["need_news"])
 
         dbg["orchestrator"] = {
             "mode": "llm",
@@ -125,7 +123,7 @@ def unified_orchestrator(state: FinanceState) -> FinanceState:
         fb = _default_router(state)
         state["intent"] = fb["intent"]
         state["tone"] = fb["tone"]
-        state["need_news"] = True  # 保守：fallback 時仍嘗試新聞
+        state["need_news"] = fb["need_news"]
 
         dbg["orchestrator"] = {
             "mode": "fallback",

@@ -189,13 +189,13 @@ def anomaly_detector_node(state: dict) -> dict:
     從 state 讀取交易資訊，判斷是否異常，寫回 state
     """
     # 如果前面的 node 有錯誤，跳過
-    if state.get("error"):
+    if get("error"):
         return {}
 
-    amount = state.get("amount", 0)
-    category = state.get("category_name", "其他支出")
-    description = state.get("description", "")
-    merchant = state.get("merchant", "未知")
+    amount = get("amount", 0)
+    category = get("category_name", "其他支出")
+    description = get("description", "")
+    merchant = get("merchant", "未知")
 
     if amount <= 0:
         return {
