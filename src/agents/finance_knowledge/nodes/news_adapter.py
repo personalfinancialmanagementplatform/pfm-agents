@@ -15,11 +15,14 @@ def finance_to_news_adapter(state: FinanceState) -> FinanceState:
     news_state_in: Dict[str, Any] = {
         "user_id": state.get("user_id", "unknown"),
         "raw_text": state.get("raw_input", ""),
-        "trigger": "qa",  # finance query 預設走 QA；若你要推播再改成 digest/refresh
+        "user_level": state.get("user_level", "beginner"),
+        "user_preference": state.get("user_preference", []),
+        "trigger": "related_news",   # 只在 finance graph 明確需要新聞時才呼叫
         "debug": {
             "from_finance": {
-                "user_level": state.get("user_level"),
-                "user_preference": state.get("user_preference", []),
+                "intent": state.get("intent"),
+                "concepts": state.get("concepts", []),
+                "need_news": state.get("need_news", False),
             }
         },
     }
