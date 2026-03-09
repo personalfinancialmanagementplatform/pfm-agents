@@ -1,35 +1,69 @@
-from __future__ import annotations
-from typing import Any, Dict
+from typing import Dict, Any, List
 
-from src.config import get_configs
-from src.agents.news.state import NewsState
-from src.mcp.tools.news_tools import fetch_rss, filter_taiwan_etf, dedup_articles
+try:
+    from src.mcp.tools.news_tools import fetch_rss, dedup_articles
+except Exception:
+    fetch_rss = None
+    dedup_articles = None
 
 
-def news_fetch_node(state: NewsState) -> Dict[str, Any]:
-    cfg = get_configs()["news"]
-    rss_cfg = ((cfg.get("sources") or {}).get("rss") or {})
-    enabled = bool(rss_cfg.get("enabled", False))
-    feeds = rss_cfg.get("feeds") or []
+DEFAULT_FEEDS = [
+    "https://news.cnyes.com/rss/news/cat/headline",
+]
 
-    if not enabled or not feeds:
-        return {
-            "candidates": [],
-            "debug": {**state.get("debug", {}), "fetch": {"enabled": enabled, "feeds": len(feeds)}},
+
+def _fallback_items(keywords: List[str]) -> List[Dict[str, Any]]:
+    # 沒接真實 RSS / tool 時，至少不讓 graph 壞掉
+    kw_text = "、".join(keywords) if keywords else "相關主題"
+    return [
+        {
+            "article_id": "mock-1",
+            "title": f"{kw_text} 近期市場新聞整理（mock）",
+            "summary": f"目前尚未接上正式新聞來源，這是 {kw_text} 的示意新聞摘要。",
+            "source": "mock",
+            "url": "",
         }
+    ]
 
-    # 1) 抓 RSS
-    items = fetch_rss(feeds, per_feed_limit=80)
 
-    # 2) 去重
-    items = dedup_articles(items)
+def news_fetch_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    keywords = state.get("keywords") or []
 
-    # 3) 聚焦台股 ETF（用 news.yaml 的 defaults.keywords 控制）
-    prefs = (cfg.get("preferences") or {}).get("defaults") or {}
-    keywords = prefs.get("keywords") or []
-    focused = filter_taiwan_etf(items, keywords=keywords if keywords else None)
+    dbg = state.get("debug") or {}
+    dbg.setdefault("fetch", {})
 
-    return {
-        "candidates": focused,
-        "debug": {**state.get("debug", {}), "fetch": {"mode": "rss", "total": len(items), "focused": len(focused)}},
-    }
+    try:
+        if fetch_rss is None:
+            items = _fallback_items(keywords)
+            state["candidates"] = items
+            dbg["fetch"] = {"mode": "mock", "count": len(items)}
+            state["debug"] = dbg
+            return state
+
+        items = fetch_rss(DEFAULT_FEEDS)
+
+        if dedup_articles is not None:
+            items = dedup_articles(items)
+
+        # 簡單關鍵字篩選
+        if keywords:
+            filtered = []
+            for item in items:
+                text = f"{item.get('title', '')} {item.get('summary', '')}"
+                if any(k in text for k in keywords):
+                    filtered.append(item)
+            items = filtered or items[:10]
+        else:
+            items = items[:10]
+
+        state["candidates"] = items
+        dbg["fetch"] = {"mode": "rss", "count": len(items), "keywords": keywords}
+        state["debug"] = dbg
+        return state
+
+    except Exception as e:
+        items = _fallback_items(keywords)
+        state["candidates"] = items
+        dbg["fetch"] = {"mode": "fallback", "error": str(e), "count": len(items)}
+        state["debug"] = dbg
+        return state

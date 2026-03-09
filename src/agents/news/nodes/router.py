@@ -1,95 +1,89 @@
-from __future__ import annotations
-from typing import Any, Dict
-import json
-
-from src.models.taide import get_taide_model
-from src.agents.news.state import NewsState
+from typing import Dict, Any, List
 
 
-def _fallback_router(raw_text: str) -> Dict[str, Any]:
-    t = raw_text.strip()
-
-    # 非常簡單的 fallback 規則：先讓系統能跑
-    if any(k in t for k in ["推播", "新聞", "熱門", "今天有什麼新聞", "給我新聞"]):
-        return {
-            "intent": "digest",
-            "question_type": "general",
-            "scope": "general",
-            "need_news": True,
-            "need_kb": False,
-        }
-
-    if any(k in t for k in ["什麼是", "名詞", "意思", "定義"]):
-        return {
-            "intent": "qa",
-            "question_type": "term",
-            "scope": "general",
-            "need_news": False,
-            "need_kb": True,
-        }
-
-    if any(k in t for k in ["為什麼", "原因", "漲", "跌", "漲停", "盤勢"]):
-        return {
-            "intent": "qa",
-            "question_type": "market_reasoning",
-            "scope": "macro",
-            "need_news": True,
-            "need_kb": True,
-        }
-
-    if any(k in t for k in ["產業", "供應鏈", "影響哪些", "會影響到什麼股", "科技最近發生"]):
-        return {
-            "intent": "qa",
-            "question_type": "industry_impact",
-            "scope": "industry",
-            "need_news": True,
-            "need_kb": True,
-        }
-
-    return {
-        "intent": "qa",
-        "question_type": "general",
-        "scope": "general",
-        "need_news": True,   # 保守：一般問題先嘗試查新聞
-        "need_kb": True,
-    }
+NEWS_TRIGGER_KEYWORDS = [
+    "新聞",
+    "最新消息",
+    "近期消息",
+    "最近消息",
+    "相關新聞",
+    "有沒有新聞",
+    "最近怎麼了",
+    "最近發生什麼",
+    "近期發生什麼",
+    "最新發展",
+    "最新動態",
+]
 
 
-def news_router_node(state: NewsState) -> Dict[str, Any]:
+def _extract_keywords(text: str) -> List[str]:
+    text = (text or "").strip()
+    keywords: List[str] = []
+
+    # 極簡但穩定的關鍵字抽取
+    candidates = [
+        "ETF", "0050", "0056", "00878", "00919", "台股", "美股",
+        "科技股", "半導體", "AI", "台積電", "聯發科", "高股息", "升息", "降息"
+    ]
+
+    for c in candidates:
+        if c in text and c not in keywords:
+            keywords.append(c)
+
+    return keywords
+
+
+def news_router_node(state: Dict[str, Any]) -> Dict[str, Any]:
     raw_text = (state.get("raw_text") or "").strip()
-    trigger = state.get("trigger") or "qa"
+    trigger = (state.get("trigger") or "").strip().lower()
 
-    # digest/refresh 直接走新聞流程
-    if trigger in ("digest", "refresh"):
-        return {
-            "intent": "digest",
-            "question_type": "general",
-            "scope": "general",
-            "need_news": True,
-            "need_kb": False,
-            "debug": {**state.get("debug", {}), "router": {"mode": "trigger", "trigger": trigger}},
+    dbg = state.get("debug") or {}
+    dbg.setdefault("router", {})
+
+    if not raw_text:
+        state["intent"] = "skip"
+        state["question_type"] = "general"
+        state["need_news"] = False
+        state["need_kb"] = False
+        state["keywords"] = []
+        dbg["router"] = {"mode": "empty_input"}
+        state["debug"] = dbg
+        return state
+
+    # parent graph 明確要求新聞
+    explicit_trigger = trigger in {"news", "digest", "related_news"}
+
+    # 使用者語句明確提到新聞/消息
+    explicit_news_query = any(k in raw_text for k in NEWS_TRIGGER_KEYWORDS)
+
+    if explicit_trigger or explicit_news_query:
+        state["intent"] = "digest"
+        state["question_type"] = "news_query"
+        state["scope"] = "related_news"
+        state["need_news"] = True
+        state["need_kb"] = False
+        state["keywords"] = _extract_keywords(raw_text)
+
+        dbg["router"] = {
+            "mode": "explicit_news",
+            "trigger": trigger,
+            "keywords": state["keywords"],
         }
+        state["debug"] = dbg
+        return state
 
-    # QA：優先用 LLM router（若你尚未加 task_configs.news_router，也會 fallback 到 inference default）
-    model = get_taide_model()
-    prompt = (
-        "請判斷使用者問題要走哪種任務，並輸出 JSON：\n"
-        "{intent: 'qa'|'digest', question_type: 'term'|'market_reasoning'|'industry_impact'|'general', "
-        "scope: 'industry'|'macro'|'general', need_news: true/false, need_kb: true/false}\n"
-        f"使用者輸入：{raw_text}"
-    )
+    # 預設不處理，直接交還 parent graph
+    state["intent"] = "skip"
+    state["question_type"] = "general"
+    state["scope"] = "general"
+    state["need_news"] = False
+    state["need_kb"] = False
+    state["keywords"] = _extract_keywords(raw_text)
 
-    try:
-        out = model.generate_task("news_router", prompt)
-        parsed = json.loads(out)
-        # 最低限度防呆
-        for k in ["intent", "question_type", "scope", "need_news", "need_kb"]:
-            if k not in parsed:
-                raise ValueError(f"missing key: {k}")
-        parsed["debug"] = {**state.get("debug", {}), "router": {"mode": "llm", "raw": out}}
-        return parsed
-    except Exception:
-        fb = _fallback_router(raw_text)
-        fb["debug"] = {**state.get("debug", {}), "router": {"mode": "fallback"}}
-        return fb
-
+    dbg["router"] = {
+        "mode": "skip",
+        "trigger": trigger,
+        "keywords": state["keywords"],
+    }
+    state["debug"] = dbg
+    return state

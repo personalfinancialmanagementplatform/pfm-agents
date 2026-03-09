@@ -1,45 +1,45 @@
-from __future__ import annotations
-from typing import Any, Dict, List, Optional, TypedDict, Literal
-
-
-NewsTrigger = Literal["qa", "digest", "refresh"]
-NewsScope = Literal["industry", "macro", "general"]
-QuestionType = Literal["term", "market_reasoning", "industry_impact", "general"]
+from typing import TypedDict, List, Optional, Dict, Any
 
 
 class NewsState(TypedDict, total=False):
-    # ---- Input ----
+    # =========================
+    # Input
+    # =========================
     user_id: str
     raw_text: str
-    trigger: NewsTrigger  # qa | digest | refresh
+    user_level: str
+    user_preference: List[str]
 
-    # ---- Router output ----
-    intent: str  # e.g., "qa" / "digest"
-    question_type: QuestionType
-    scope: NewsScope
-    need_news: bool
-    need_kb: bool
+    # Optional trigger from parent graph
+    trigger: Optional[str]   # news / digest / related_news / qa
 
-    # ---- Fetch output ----
-    # candidates: list of article dicts: {id,url,title,source,published_at,summary,content}
-    candidates: List[Dict[str, Any]]
+    # =========================
+    # Router / Understanding
+    # =========================
+    intent: Optional[str]            # digest / skip
+    question_type: Optional[str]     # news_query / general
+    scope: Optional[str]
+    need_news: Optional[bool]
+    need_kb: Optional[bool]
 
-    # ---- Understand (IR) output ----
-    # ir_items: list of enriched dicts: {article_id, event, why_it_matters, entities, tickers?, uncertainty}
-    ir_items: List[Dict[str, Any]]
+    # extracted keywords
+    keywords: Optional[List[str]]
 
-    # ---- Rank output ----
-    hot_items: List[Dict[str, Any]]
-    personalized_items: List[Dict[str, Any]]
-    final_items: List[Dict[str, Any]]
+    # =========================
+    # Fetch / IR
+    # =========================
+    candidates: Optional[List[Dict[str, Any]]]   # fetched raw news
+    ir_items: Optional[List[Dict[str, Any]]]     # summarized / understood items
+    final_items: Optional[List[Dict[str, Any]]]  # ranked items
 
-    # ---- Knowledge/QA output ----
-    kb_context: Optional[str]        # glossary hits or retrieved snippets
-    answer_draft: Optional[str]      # raw draft from LLM
+    # =========================
+    # Output
+    # =========================
+    answer_draft: Optional[str]
+    response_message: Optional[str]
 
-    # ---- Final output ----
-    response_message: str
+    # =========================
+    # Debug / Error
+    # =========================
+    debug: Optional[Dict[str, Any]]
     error: Optional[str]
-
-    # ---- Debug ----
-    debug: Dict[str, Any]

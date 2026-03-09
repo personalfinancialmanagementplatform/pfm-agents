@@ -1,31 +1,16 @@
-from __future__ import annotations
-from typing import Any, Dict
-from src.models.taide import get_taide_model
-from src.agents.news.state import NewsState
+from typing import Dict, Any
 
 
-def news_knowledge_node(state: NewsState) -> Dict[str, Any]:
+def news_knowledge_node(state: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Compatibility fallback.
+    目前 news agent 不再主打金融 QA，這個 node 只保留相容性。
+    """
     raw_text = (state.get("raw_text") or "").strip()
-    qtype = state.get("question_type") or "general"
-    model = get_taide_model()
 
-    # 先不做 RAG：直接用 task_configs 控制格式/語氣
-    task_map = {
-        "term": "finance_term_explain",
-        "market_reasoning": "market_reasoning",
-        "industry_impact": "industry_impact",
-        "general": "finance_term_explain",
-    }
-    task_name = task_map.get(qtype, "finance_term_explain")
-
-    prompt = (
-        "請用繁體中文回答，避免投資建議與保證，必要時用「可能/通常/視情況」措辭。\n"
-        f"問題類型：{qtype}\n"
-        f"使用者問題：{raw_text}\n"
+    state["answer_draft"] = (
+        f"目前 News Agent 已簡化為新聞抓取與摘要流程；"
+        f"若是金融知識問答，建議由 Finance Knowledge Agent 回答。\n\n"
+        f"原始問題：{raw_text}"
     )
-
-    try:
-        answer = model.generate_task(task_name, prompt)
-        return {"answer_draft": answer, "debug": {**state.get("debug", {}), "knowledge": {"task": task_name}}}
-    except Exception as e:
-        return {"answer_draft": "（暫時無法產生答案）", "error": str(e)}
+    return state
